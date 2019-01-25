@@ -5,8 +5,8 @@ using Microsoft.AspNetCore.SignalR.Protocol;
 
 namespace Microsoft.AspNetCore.SignalR.Common.Tests.Internal.Protocol
 {
-    public class MessagePackHubProtocolTests : MessagePackHubProtocolTestsBase
+    public class StrawManHubProtocolTests : MessagePackHubProtocolTestsBase
     {
-        protected override IHubProtocol HubProtocol => new MessagePackHubProtocol(); 
+        protected override IHubProtocol HubProtocol { get; } = new StrawManHubProtocol();
     }
 }

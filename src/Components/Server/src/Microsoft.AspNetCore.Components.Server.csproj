@@ -5,6 +5,7 @@
     <Description>Runtime server features for ASP.NET Core Components.</Description>
     <IsShippingPackage>true</IsShippingPackage>
     <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,6 +20,12 @@
     <Reference Include="Microsoft.AspNetCore.StaticFiles" />
     <Reference Include="Microsoft.AspNetCore.SpaServices.Extensions" />
     <Reference Include="Microsoft.Extensions.FileProviders.Embedded" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\..\SignalR\common\Shared\BinaryMessageFormatter.cs" Link="Strawman\BinaryMessageFormatter.cs" />
+    <Compile Include="..\..\..\SignalR\common\Shared\BinaryMessageParser.cs" Link="Strawman\BinaryMessageParser.cs" />
+    <Compile Include="..\..\..\SignalR\common\Shared\MemoryBufferWriter.cs" Link="Strawman\MemoryBufferWriter.cs" />
   </ItemGroup>
 
   <ItemGroup>

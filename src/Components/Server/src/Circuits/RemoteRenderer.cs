@@ -3,11 +3,12 @@
 
 using System;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using MessagePack;
 using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.AspNetCore.Components.Server.Circuits;
+using Microsoft.AspNetCore.Internal;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.JSInterop;
 
@@ -153,7 +154,17 @@ namespace Microsoft.AspNetCore.Components.Browser.Rendering
             // snapshot its contents now.
             // TODO: Consider using some kind of array pool instead of allocating a new
             //       buffer on every render.
-            var batchBytes = MessagePackSerializer.Serialize(batch, RenderBatchFormatterResolver.Instance);
+
+            byte[] batchBytes;
+
+            using (var stream = new MemoryStream())
+            {
+                using (var writer = new RenderBatchWriter(stream, leaveOpen: false))
+                {
+                    writer.Write(batch);
+                    batchBytes = stream.ToArray();
+                }
+            }
 
             // Prepare to track the render process with a timeout
             var renderId = Interlocked.Increment(ref _nextRenderId);

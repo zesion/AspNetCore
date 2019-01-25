@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Components.Hosting;
 using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.Components.Services;
+using Microsoft.AspNetCore.SignalR.Protocol;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.JSInterop;
 
@@ -110,7 +111,8 @@ namespace Microsoft.Extensions.DependencyInjection
             // method on ISignalRServerBuilder so the developer always has to chain it onto
             // their own AddSignalR call. For now we're keeping it like this because it's
             // simpler for developers in common cases.
-            services.AddSignalR().AddMessagePackProtocol();
+            services.AddSignalR();
+            services.TryAddEnumerable(ServiceDescriptor.Singleton<IHubProtocol, StrawManHubProtocol>());
         }
     }
 }
