@@ -9,13 +9,24 @@ namespace Microsoft.AspNetCore.SignalR.Internal
     {
         private readonly string _connectionId;
         private readonly IHubClients _hubClients;
-        private readonly string[] _currentConnectionId;
+        private string[] _currentConnectionIdField;
+
+        private string[] _currentConnectionId
+        {
+            get
+            {
+                if (_currentConnectionIdField == null)
+                {
+                    _currentConnectionIdField = new[] { _connectionId };
+                }
+                return _currentConnectionIdField;
+            }
+        }
 
         public HubCallerClients(IHubClients hubClients, string connectionId)
         {
             _connectionId = connectionId;
             _hubClients = hubClients;
-            _currentConnectionId = new[] { _connectionId };
         }
 
         public IClientProxy Caller => _hubClients.Client(_connectionId);
