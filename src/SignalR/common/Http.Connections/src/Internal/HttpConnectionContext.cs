@@ -89,8 +89,6 @@ namespace Microsoft.AspNetCore.Http.Connections.Internal
 
         public Task TransportTask { get; set; }
 
-        public Task PreviousPollTask { get; set; } = Task.CompletedTask;
-
         public Task ApplicationTask { get; set; }
 
         public DateTime LastSeenUtc { get; set; }
@@ -206,6 +204,45 @@ namespace Microsoft.AspNetCore.Http.Connections.Internal
             {
                 StateLock.Release();
 
+                Cancellation?.Dispose();
+
+                Cancellation = null;
+
+                if (User != null && User.Identity is WindowsIdentity)
+                {
+                    foreach (var identity in User.Identities)
+                    {
+                        (identity as IDisposable)?.Dispose();
+                    }
+                }
+            }
+
+            await disposeTask;
+        }
+
+        public async Task DisposeWithoutLockAsync(bool closeGracefully = false)
+        {
+            Task disposeTask;
+            try
+            {
+                if (Status == HttpConnectionStatus.Disposed)
+                {
+                    disposeTask = _disposeTcs.Task;
+                }
+                else
+                {
+                    Status = HttpConnectionStatus.Disposed;
+
+                    Log.DisposingConnection(_logger, ConnectionId);
+
+                    var applicationTask = ApplicationTask ?? Task.CompletedTask;
+                    var transportTask = TransportTask ?? Task.CompletedTask;
+
+                    disposeTask = WaitOnTasks(applicationTask, transportTask, closeGracefully);
+                }
+            }
+            finally
+            {
                 Cancellation?.Dispose();
 
                 Cancellation = null;

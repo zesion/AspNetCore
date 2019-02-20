@@ -191,9 +191,8 @@ namespace Microsoft.AspNetCore.Http.Connections.Internal
                     return;
                 }
 
-                // Create a new Tcs every poll to keep track of the poll finishing, so we can properly wait on previous polls
-                var currentRequestTcs = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
-
+                connection.Cancellation?.Cancel();
+                bool released = false;
                 await connection.StateLock.WaitAsync();
                 try
                 {
@@ -211,27 +210,6 @@ namespace Microsoft.AspNetCore.Http.Connections.Internal
                     {
                         var existing = connection.GetHttpContext();
                         Log.ConnectionAlreadyActive(_logger, connection.ConnectionId, existing.TraceIdentifier);
-                    }
-
-                    using (connection.Cancellation)
-                    {
-                        // Cancel the previous request
-                        connection.Cancellation?.Cancel();
-
-                        try
-                        {
-                            // Wait for the previous request to drain
-                            await connection.PreviousPollTask;
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            // Previous poll canceled due to connection closing, close this poll too
-                            context.Response.ContentType = "text/plain";
-                            context.Response.StatusCode = StatusCodes.Status204NoContent;
-                            return;
-                        }
-
-                        connection.PreviousPollTask = currentRequestTcs.Task;
                     }
 
                     // Mark the connection as active
@@ -257,6 +235,7 @@ namespace Microsoft.AspNetCore.Http.Connections.Internal
                     {
                         Log.ResumingConnection(_logger);
 
+                        connection.Cancellation?.Dispose();
                         // REVIEW: Performance of this isn't great as this does a bunch of per request allocations
                         connection.Cancellation = new CancellationTokenSource();
 
@@ -275,16 +254,9 @@ namespace Microsoft.AspNetCore.Http.Connections.Internal
                         // Start the timeout after we return from creating the transport task
                         timeoutSource.CancelAfter(options.LongPolling.PollTimeout);
                     }
-                }
-                finally
-                {
-                    connection.StateLock.Release();
-                }
 
-                var resultTask = await Task.WhenAny(connection.ApplicationTask, connection.TransportTask);
+                    var resultTask = await Task.WhenAny(connection.ApplicationTask, connection.TransportTask);
 
-                try
-                {
                     var pollAgain = true;
 
                     // If the application ended before the transport task then we potentially need to end the connection
@@ -299,12 +271,9 @@ namespace Microsoft.AspNetCore.Http.Connections.Internal
                         // If the status code is a 204 it means the connection is done
                         if (context.Response.StatusCode == StatusCodes.Status204NoContent)
                         {
-                            // Cancel current request to release any waiting poll and let dispose acquire the lock
-                            currentRequestTcs.TrySetCanceled();
-
                             // We should be able to safely dispose because there's no more data being written
                             // We don't need to wait for close here since we've already waited for both sides
-                            await _manager.DisposeAndRemoveAsync(connection, closeGracefully: false);
+                            await _manager.DisposeAndRemoveWithoutLockAsync(connection, closeGracefully: false);
 
                             // Don't poll again if we've removed the connection completely
                             pollAgain = false;
@@ -312,11 +281,8 @@ namespace Microsoft.AspNetCore.Http.Connections.Internal
                     }
                     else if (resultTask.IsFaulted)
                     {
-                        // Cancel current request to release any waiting poll and let dispose acquire the lock
-                        currentRequestTcs.TrySetCanceled();
-
                         // transport task was faulted, we should remove the connection
-                        await _manager.DisposeAndRemoveAsync(connection, closeGracefully: false);
+                        await _manager.DisposeAndRemoveWithoutLockAsync(connection, closeGracefully: false);
 
                         pollAgain = false;
                     }
@@ -336,9 +302,10 @@ namespace Microsoft.AspNetCore.Http.Connections.Internal
                 }
                 finally
                 {
-                    // Artificial task queue
-                    // This will cause incoming polls to wait until the previous poll has finished updating internal state info
-                    currentRequestTcs.TrySetResult(null);
+                    if (!released)
+                    {
+                        connection.StateLock.Release();
+                    }
                 }
             }
         }

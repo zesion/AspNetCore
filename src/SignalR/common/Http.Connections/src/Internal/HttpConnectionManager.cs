@@ -125,7 +125,7 @@ namespace Microsoft.AspNetCore.Http.Connections.Internal
                 {
                     try
                     {
-                        await ScanAsync();
+                        Scan();
                     }
                     catch (Exception ex)
                     {
@@ -137,7 +137,7 @@ namespace Microsoft.AspNetCore.Http.Connections.Internal
             Log.HeartBeatEnded(_logger);
         }
 
-        public async Task ScanAsync()
+        public void Scan()
         {
             // Scan the registered connections looking for ones that have timed out
             foreach (var c in _connections)
@@ -146,19 +146,10 @@ namespace Microsoft.AspNetCore.Http.Connections.Internal
                 DateTimeOffset lastSeenUtc;
                 var connection = c.Value.Connection;
 
-                await connection.StateLock.WaitAsync();
+                // Capture the connection state
+                status = connection.Status;
 
-                try
-                {
-                    // Capture the connection state
-                    status = connection.Status;
-
-                    lastSeenUtc = connection.LastSeenUtc;
-                }
-                finally
-                {
-                    connection.StateLock.Release();
-                }
+                lastSeenUtc = connection.LastSeenUtc;
 
                 // Once the decision has been made to dispose we don't check the status again
                 // But don't clean up connections while the debugger is attached.
@@ -203,6 +194,32 @@ namespace Microsoft.AspNetCore.Http.Connections.Internal
             try
             {
                 await connection.DisposeAsync(closeGracefully);
+            }
+            catch (IOException ex)
+            {
+                Log.ConnectionReset(_logger, connection.ConnectionId, ex);
+            }
+            catch (WebSocketException ex) when (ex.InnerException is IOException)
+            {
+                Log.ConnectionReset(_logger, connection.ConnectionId, ex);
+            }
+            catch (Exception ex)
+            {
+                Log.FailedDispose(_logger, connection.ConnectionId, ex);
+            }
+            finally
+            {
+                // Remove it from the list after disposal so that's it's easy to see
+                // connections that might be in a hung state via the connections list
+                RemoveConnection(connection.ConnectionId);
+            }
+        }
+
+        public async Task DisposeAndRemoveWithoutLockAsync(HttpConnectionContext connection, bool closeGracefully)
+        {
+            try
+            {
+                await connection.DisposeWithoutLockAsync(closeGracefully);
             }
             catch (IOException ex)
             {
