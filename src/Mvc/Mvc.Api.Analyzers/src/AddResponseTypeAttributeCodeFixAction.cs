@@ -37,6 +37,8 @@ namespace Microsoft.AspNetCore.Mvc.Api.Analyzers
             _diagnostic = diagnostic;
         }
 
+        public override string EquivalenceKey => base.EquivalenceKey;
+
         public override string Title => "Add ProducesResponseType attributes.";
 
         protected override async Task<Document> GetChangedDocumentAsync(CancellationToken cancellationToken)
