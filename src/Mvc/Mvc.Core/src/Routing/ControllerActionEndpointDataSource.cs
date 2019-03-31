@@ -28,6 +28,10 @@ namespace Microsoft.AspNetCore.Mvc.Routing
             Subscribe();
         }
 
+        // Used to control whether we create 'inter' (non-routable) endpoints for use in dynamic
+        // selection. Set to true by builder methods that do dynamic/fallback selection.
+        public bool CreateInertEndpoints { get; set; }
+
         public void AddRoute(in ConventionalRouteEntry route)
         {
             lock (Lock)
@@ -43,7 +47,7 @@ namespace Microsoft.AspNetCore.Mvc.Routing
             {
                 if (actions[i] is ControllerActionDescriptor action)
                 {
-                    _endpointFactory.AddEndpoints(endpoints, action, _routes, conventions);
+                    _endpointFactory.AddEndpoints(endpoints, action, _routes, conventions, CreateInertEndpoints);
                 }
             }
 

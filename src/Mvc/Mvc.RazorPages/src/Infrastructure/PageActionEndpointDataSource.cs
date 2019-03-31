@@ -25,6 +25,10 @@ namespace Microsoft.AspNetCore.Mvc.RazorPages.Infrastructure
             Subscribe();
         }
 
+        // Used to control whether we create 'inter' (non-routable) endpoints for use in dynamic
+        // selection. Set to true by builder methods that do dynamic/fallback selection.
+        public bool CreateInertEndpoints { get; set; }
+
         protected override List<Endpoint> CreateEndpoints(IReadOnlyList<ActionDescriptor> actions, IReadOnlyList<Action<EndpointBuilder>> conventions)
         {
             var endpoints = new List<Endpoint>();
@@ -32,7 +36,7 @@ namespace Microsoft.AspNetCore.Mvc.RazorPages.Infrastructure
             {
                 if (actions[i] is PageActionDescriptor action)
                 {
-                    _endpointFactory.AddEndpoints(endpoints, action, Array.Empty<ConventionalRouteEntry>(), conventions);
+                    _endpointFactory.AddEndpoints(endpoints, action, Array.Empty<ConventionalRouteEntry>(), conventions, CreateInertEndpoints);
                 }
             }
 

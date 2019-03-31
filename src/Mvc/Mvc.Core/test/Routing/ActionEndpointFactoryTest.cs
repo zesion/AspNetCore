@@ -296,11 +296,25 @@ namespace Microsoft.AspNetCore.Mvc.Routing
                     Assert.Equal(2, matcherEndpoint.Order);
                 });
         }
-        
+
+        [Fact]
+        public void AddEndpoints_CreatesInertEndpoint()
+        {
+            // Arrange
+            var values = new { controller = "TestController", action = "TestAction", page = (string)null };
+            var action = CreateActionDescriptor(values);
+
+            // Act
+            var endpoints = CreateConventionalRoutedEndpoints(action, Array.Empty<ConventionalRouteEntry>(), createInertEndpoints: true);
+
+            // Assert
+            Assert.IsType<Endpoint>(Assert.Single(endpoints));
+        }
+
         private RouteEndpoint CreateAttributeRoutedEndpoint(ActionDescriptor action)
         {
             var endpoints = new List<Endpoint>();
-            Factory.AddEndpoints(endpoints, action, Array.Empty<ConventionalRouteEntry>(), Array.Empty<Action<EndpointBuilder>>());
+            Factory.AddEndpoints(endpoints, action, Array.Empty<ConventionalRouteEntry>(), Array.Empty<Action<EndpointBuilder>>(), createInertEndpoints: false);
             return Assert.IsType<RouteEndpoint>(Assert.Single(endpoints));
         }
 
@@ -314,7 +328,7 @@ namespace Microsoft.AspNetCore.Mvc.Routing
             Assert.NotNull(action.RouteValues);
 
             var endpoints = new List<Endpoint>();
-            Factory.AddEndpoints(endpoints, action, new[] { route, }, Array.Empty<Action<EndpointBuilder>>());
+            Factory.AddEndpoints(endpoints, action, new[] { route, }, Array.Empty<Action<EndpointBuilder>>(), createInertEndpoints: false);
             var endpoint = Assert.IsType<RouteEndpoint>(Assert.Single(endpoints));
 
             // This should be true for all conventional-routed actions.
@@ -323,16 +337,16 @@ namespace Microsoft.AspNetCore.Mvc.Routing
             return endpoint;
         }
 
-        private IReadOnlyList<RouteEndpoint> CreateConventionalRoutedEndpoints(ActionDescriptor action, ConventionalRouteEntry route)
+        private IReadOnlyList<Endpoint> CreateConventionalRoutedEndpoints(ActionDescriptor action, ConventionalRouteEntry route)
         {
             return CreateConventionalRoutedEndpoints(action, new[] { route, });
         }
 
-        private IReadOnlyList<RouteEndpoint> CreateConventionalRoutedEndpoints(ActionDescriptor action, IReadOnlyList<ConventionalRouteEntry> routes)
+        private IReadOnlyList<Endpoint> CreateConventionalRoutedEndpoints(ActionDescriptor action, IReadOnlyList<ConventionalRouteEntry> routes, bool createInertEndpoints = false)
         {
             var endpoints = new List<Endpoint>();
-            Factory.AddEndpoints(endpoints, action, routes, Array.Empty<Action<EndpointBuilder>>());
-            return endpoints.Cast<RouteEndpoint>().ToList();
+            Factory.AddEndpoints(endpoints, action, routes, Array.Empty<Action<EndpointBuilder>>(), createInertEndpoints);
+            return endpoints.ToList();
         }
 
         private ConventionalRouteEntry CreateRoute(

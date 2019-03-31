@@ -34,7 +34,8 @@ namespace Microsoft.AspNetCore.Mvc.Routing
             List<Endpoint> endpoints,
             ActionDescriptor action,
             IReadOnlyList<ConventionalRouteEntry> routes,
-            IReadOnlyList<Action<EndpointBuilder>> conventions)
+            IReadOnlyList<Action<EndpointBuilder>> conventions,
+            bool createInertEndpoints)
         {
             if (endpoints == null)
             {
@@ -54,6 +55,17 @@ namespace Microsoft.AspNetCore.Mvc.Routing
             if (conventions == null)
             {
                 throw new ArgumentNullException(nameof(conventions));
+            }
+
+            if (createInertEndpoints)
+            {
+                // For each ActionDescriptor create a single 'inert' Endpoint without routing information.
+                //
+                // This makes those endpoints accessible for dynamic and fallback routing. We don't want to
+                // mix RouteEndpoint that is selected by routing, vs Endpoint that is selected by user code/policies
+                //
+                // This also helps us avoid ambiguities when an endpoint has multiple conventional routes.
+                endpoints.Add(CreateInertEndpoint(action, conventions));
             }
 
             if (action.AttributeRouteInfo == null)
@@ -181,31 +193,7 @@ namespace Microsoft.AspNetCore.Mvc.Routing
             bool suppressPathMatching,
             IReadOnlyList<Action<EndpointBuilder>> conventions)
         {
-
-            // We don't want to close over the retrieve the Invoker Factory in ActionEndpointFactory as
-            // that creates cycles in DI. Since we're creating this delegate at startup time
-            // we don't want to create all of the things we use at runtime until the action
-            // actually matches.
-            //
-            // The request delegate is already a closure here because we close over
-            // the action descriptor.
-            IActionInvokerFactory invokerFactory = null;
-
-            RequestDelegate requestDelegate = (context) =>
-            {
-                var routeData = context.GetRouteData();
-                var actionContext = new ActionContext(context, routeData, action);
-
-                if (invokerFactory == null)
-                {
-                    invokerFactory = context.RequestServices.GetRequiredService<IActionInvokerFactory>();
-                }
-
-                var invoker = invokerFactory.CreateInvoker(actionContext);
-                return invoker.InvokeAsync();
-            };
-
-            var builder = new RouteEndpointBuilder(requestDelegate, routePattern, order)
+            var builder = new RouteEndpointBuilder(CreateRequestDelegate(action), routePattern, order)
             {
                 DisplayName = action.DisplayName,
             };
@@ -228,6 +216,83 @@ namespace Microsoft.AspNetCore.Mvc.Routing
 
             builder.Metadata.Add(new RouteNameMetadata(routeName));
 
+            AddMetadataFromActionDescriptor(builder, action);
+
+            if (suppressLinkGeneration)
+            {
+                builder.Metadata.Add(new SuppressLinkGenerationMetadata());
+            }
+
+            if (suppressPathMatching)
+            {
+                builder.Metadata.Add(new SuppressMatchingMetadata());
+            }
+
+            for (var i = 0; i < conventions.Count; i++)
+            {
+                conventions[i](builder);
+            }
+
+            return (RouteEndpoint)builder.Build();
+        }
+
+        private Endpoint CreateInertEndpoint(ActionDescriptor action, IReadOnlyList<Action<EndpointBuilder>> conventions)
+        {
+            var builder = new InertEndpointBuilder()
+            {
+                RequestDelegate = CreateRequestDelegate(action),
+                DisplayName = action.DisplayName,
+            };
+
+            // Add action metadata first so it has a low precedence
+            if (action.EndpointMetadata != null)
+            {
+                foreach (var d in action.EndpointMetadata)
+                {
+                    builder.Metadata.Add(d);
+                }
+            }
+
+            builder.Metadata.Add(action);
+
+            AddMetadataFromActionDescriptor(builder, action);
+
+            for (var i = 0; i < conventions.Count; i++)
+            {
+                conventions[i](builder);
+            }
+
+            return builder.Build();
+        }
+
+        private RequestDelegate CreateRequestDelegate(ActionDescriptor action)
+        {
+            // We don't want to close over the retrieve the Invoker Factory in ActionEndpointFactory as
+            // that creates cycles in DI. Since we're creating this delegate at startup time
+            // we don't want to create all of the things we use at runtime until the action
+            // actually matches.
+            //
+            // The request delegate is already a closure here because we close over
+            // the action descriptor.
+            IActionInvokerFactory invokerFactory = null;
+
+            return (context) =>
+            {
+                var routeData = context.GetRouteData();
+                var actionContext = new ActionContext(context, routeData, action);
+
+                if (invokerFactory == null)
+                {
+                    invokerFactory = context.RequestServices.GetRequiredService<IActionInvokerFactory>();
+                }
+
+                var invoker = invokerFactory.CreateInvoker(actionContext);
+                return invoker.InvokeAsync();
+            };
+        }
+
+        private void AddMetadataFromActionDescriptor(EndpointBuilder builder, ActionDescriptor action)
+        {
             // Add filter descriptors to endpoint metadata
             if (action.FilterDescriptors != null && action.FilterDescriptors.Count > 0)
             {
@@ -263,23 +328,14 @@ namespace Microsoft.AspNetCore.Mvc.Routing
                     }
                 }
             }
+        }
 
-            if (suppressLinkGeneration)
+        private class InertEndpointBuilder : EndpointBuilder
+        {
+            public override Endpoint Build()
             {
-                builder.Metadata.Add(new SuppressLinkGenerationMetadata());
+                return new Endpoint(RequestDelegate, new EndpointMetadataCollection(Metadata), DisplayName);
             }
-
-            if (suppressPathMatching)
-            {
-                builder.Metadata.Add(new SuppressMatchingMetadata());
-            }
-
-            for (var i = 0; i < conventions.Count; i++)
-            {
-                conventions[i](builder);
-            }
-
-            return (RouteEndpoint)builder.Build();
         }
     }
 }

@@ -14,7 +14,7 @@ using Microsoft.AspNetCore.Routing.Patterns;
 
 namespace Microsoft.AspNetCore.Mvc.Performance
 {
-    public class ActionEndpointDataSourceBenchmark
+    public class ControllerActionEndpointDataSourceBenchmark
     {
         private const string DefaultRoute = "{Controller=Home}/{Action=Index}/{id?}";
 
@@ -110,9 +110,9 @@ namespace Microsoft.AspNetCore.Mvc.Performance
             };
         }
 
-        private ActionEndpointDataSource CreateDataSource(IActionDescriptorCollectionProvider actionDescriptorCollectionProvider)
+        private ControllerActionEndpointDataSource CreateDataSource(IActionDescriptorCollectionProvider actionDescriptorCollectionProvider)
         {
-            var dataSource = new ActionEndpointDataSource(
+            var dataSource = new ControllerActionEndpointDataSource(
                 actionDescriptorCollectionProvider,
                 new ActionEndpointFactory(new MockRoutePatternTransformer()));
 

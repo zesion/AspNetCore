@@ -171,7 +171,11 @@ namespace Microsoft.Extensions.DependencyInjection
             //
             // Action Selection
             //
-            services.TryAddSingleton<IActionSelector, ActionSelector>();
+            services.TryAddSingleton<IActionSelector>(services =>
+            {
+                return services.GetRequiredService<ActionSelector>();
+            });
+            services.TryAddSingleton<ActionSelector>();
             services.TryAddSingleton<ActionConstraintCache>();
 
             // Will be cached by the DefaultActionSelector
@@ -269,7 +273,6 @@ namespace Microsoft.Extensions.DependencyInjection
             //
             // Endpoint Routing / Endpoints
             //
-            services.TryAddSingleton<ActionEndpointDataSource>();
             services.TryAddSingleton<ControllerActionEndpointDataSource>();
             services.TryAddSingleton<ActionEndpointFactory>();
             services.TryAddSingleton<DynamicControllerEndpointSelector>();
