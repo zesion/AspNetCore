@@ -18,7 +18,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="libman.json" />
     <EmbeddedResource Include="wwwroot/**/*" />
     <EmbeddedResource Remove="wwwroot/**/LICENSE*" />
     <None Remove="wwwroot/**/LICENSE*" />
@@ -34,7 +33,6 @@
     <Reference Include="Microsoft.AspNetCore.StaticFiles" />
     <Reference Include="Microsoft.Extensions.FileProviders.Embedded" />
     <Reference Include="Microsoft.Extensions.Identity.Stores" />
-    <Reference Include="Microsoft.Web.LibraryManager.Build" />
   </ItemGroup>
 
   <ItemGroup>
