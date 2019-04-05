@@ -28,10 +28,15 @@ namespace Templates.Test
         private readonly HttpClient _httpClient;
         private static List<ScriptTag> _scriptTags;
         private static List<LinkTag> _linkTags;
-        private static readonly string[] _packages;
+        private readonly string[] _packages;
 
-        static CdnScriptTagTests()
+        public ProjectFactoryFixture ProjectFactory { get; }
+        public Project Project { get; set; }
+
+        public CdnScriptTagTests(ProjectFactoryFixture projectFactory)
         {
+            ProjectFactory = projectFactory;
+
             var searchPattern = "*.nupkg";
             _packages = Directory.EnumerateFiles(
                     ResolveFolder("ArtifactsShippingPackagesDir"),
@@ -124,12 +129,15 @@ namespace Templates.Test
         [MemberData(nameof(FallbackSrcCheckData))]
         public async Task FallbackSrcContent_Matches_CDNContent(ScriptTag scriptTag)
         {
+            Project = await ProjectFactory.GetOrCreateProject($"CDNSRC{scriptTag.Project}", _output);
+
             var fallbackSrc = scriptTag.FallbackSrc
                 .TrimStart('~')
                 .TrimStart('/');
 
             var cdnContent = await GetStringFromCDN(scriptTag.Src);
-            var fallbackSrcContent = GetFileContentFromArchive(scriptTag, fallbackSrc);
+            
+            var fallbackSrcContent = await GetFileContentFromTemplateAsync(scriptTag, fallbackSrc);
 
             Assert.Equal(RemoveLineEndings(cdnContent), RemoveLineEndings(fallbackSrcContent));
         }
@@ -154,6 +162,7 @@ namespace Templates.Test
             public string FallbackSrc;
             public string FileName;
             public string Entry;
+            public string Project;
 
             public override string ToString()
             {
@@ -204,24 +213,19 @@ namespace Templates.Test
             }
         }
 
-        private static string GetFileContentFromArchive(ScriptTag scriptTag, string relativeFilePath)
+        private async Task<string> GetFileContentFromTemplateAsync(ScriptTag scriptTag, string relativeFilePath)
         {
-            var file = _packages.Single(f => f.EndsWith(scriptTag.FileName));
-            using (var zip = new ZipArchive(File.OpenRead(file), ZipArchiveMode.Read, leaveOpen: false))
-            {
-                var entry = zip.Entries
-                    .Where(e => e.FullName.EndsWith(relativeFilePath, StringComparison.OrdinalIgnoreCase))
-                    .FirstOrDefault();
+            var templateName = EntryToProjectName(scriptTag);
+            var newResult = await Project.RunDotNetNewAsync(templateName);
+            Assert.Equal(0, newResult.ExitCode);
 
-                if (entry != null)
-                {
-                    using (var reader = new StreamReader(entry.Open()))
-                    {
-                        return reader.ReadToEnd();
-                    }
-                }
+            var files = Directory.GetFiles(Project.TemplateOutputDir, relativeFilePath);
+            var fileStr = Assert.Single(files);
+
+            using (var reader = new StreamReader(File.Open(fileStr, FileMode.Open)))
+            {
+                return reader.ReadToEnd();
             }
-            return null;
         }
 
         private static (List<ScriptTag> scripts, List<LinkTag> links) GetTags(string zipFile)
@@ -271,13 +275,28 @@ namespace Templates.Test
                             Integrity = scriptElement.Integrity,
                             FallbackSrc = fallbackSrcAttribute?.Value,
                             FileName = Path.GetFileName(zipFile),
-                            Entry = entry.FullName
+                            Entry = entry.FullName,
+                            Project = entry.FullName.Split('/')[1]
                         });
                     }
 
                 }
             }
             return (scriptTags, linkTags);
+        }
+
+        private static string EntryToProjectName(ScriptTag scriptTag)
+        {
+            switch(scriptTag.Project)
+            {
+                case "RazorPagesWeb-CSharp":
+                    return "razor";
+                case "StarterWeb-CSharp":
+                    return "mvc";
+                default:
+                    throw new NotSupportedException($"{scriptTag.Project} isn't supported yet.");
+
+            }
         }
 
         private static string RemoveLineEndings(string originalString)
