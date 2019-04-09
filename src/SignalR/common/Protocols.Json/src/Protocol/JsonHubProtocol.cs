@@ -176,6 +176,7 @@ namespace Microsoft.AspNetCore.SignalR.Protocol
                             {
                                 hasResult = true;
 
+                                var start = reader.BytesConsumed;
                                 reader.CheckRead();
 
                                 if (string.IsNullOrEmpty(invocationId))
@@ -189,8 +190,29 @@ namespace Microsoft.AspNetCore.SignalR.Protocol
                                     var returnType = binder.GetReturnType(invocationId);
                                     if (reader.TokenType != JsonTokenType.Null)
                                     {
-                                        using var token = JsonDocument.ParseValue(ref reader);
-                                        result = BindType(token.RootElement, returnType);
+                                        if (returnType == typeof(DateTime))
+                                        {
+                                            result = reader.GetDateTime();
+                                        }
+                                        else if (returnType == typeof(DateTimeOffset))
+                                        {
+                                            result = reader.GetDateTimeOffset();
+                                        }
+                                        else
+                                        {
+                                            if (reader.TokenType == JsonTokenType.String || reader.TokenType == JsonTokenType.StartArray || reader.TokenType == JsonTokenType.StartObject)
+                                            {
+                                                var end = reader.BytesConsumed;
+                                                var thing = input.Slice(start, end - start);
+                                                result = JsonSerializer.Parse(thing.IsSingleSegment ? thing.First.Span : thing.ToArray(), returnType);
+                                            }
+                                            else
+                                            {
+                                                result = JsonSerializer.Parse(reader.HasValueSequence ? reader.ValueSequence.ToArray() : reader.ValueSpan, returnType);
+                                            }
+                                        }
+                                        //using var token = JsonDocument.ParseValue(ref reader);
+                                        //result = BindType(token.RootElement, returnType);
                                     }
                                 }
                             }
@@ -228,6 +250,7 @@ namespace Microsoft.AspNetCore.SignalR.Protocol
                             }
                             else if (reader.TextEquals(ArgumentsPropertyNameBytes))
                             {
+                                var start = reader.BytesConsumed;
                                 reader.CheckRead();
 
                                 int initialDepth = reader.CurrentDepth;
@@ -250,8 +273,30 @@ namespace Microsoft.AspNetCore.SignalR.Protocol
                                         var paramTypes = binder.GetParameterTypes(target);
                                         if (reader.TokenType != JsonTokenType.Null)
                                         {
-                                            using var token = JsonDocument.ParseValue(ref reader);
-                                            arguments = BindTypes(token.RootElement, paramTypes);
+                                            //using var token = JsonDocument.ParseValue(ref reader);
+                                            //arguments = BindTypes(token.RootElement, paramTypes);
+                                            var depth = reader.CurrentDepth;
+                                            var list = new List<object>();
+                                            var i = 0;
+                                            reader.Read();
+                                            while (reader.TokenType != JsonTokenType.EndArray && depth < reader.CurrentDepth)
+                                            {
+                                                if (reader.TokenType == JsonTokenType.String || reader.TokenType == JsonTokenType.StartArray || reader.TokenType == JsonTokenType.StartObject)
+                                                {
+                                                    var end = reader.BytesConsumed;
+                                                    var thing = input.Slice(start, end - start);
+                                                    list.Add(JsonSerializer.Parse(thing.IsSingleSegment ? thing.First.Span : thing.ToArray(), paramTypes[i]));
+                                                }
+                                                else
+                                                {
+                                                    list.Add(JsonSerializer.Parse(reader.HasValueSequence ? reader.ValueSequence.ToArray() : reader.ValueSpan, paramTypes[i]));
+                                                    //result = JsonSerializer.Parse(reader.HasValueSequence ? reader.ValueSequence.ToArray() : reader.ValueSpan, returnType);
+                                                }
+                                                ++i;
+                                                reader.Read();
+                                            }
+
+                                            arguments = list.ToArray();
                                         }
                                     }
                                     catch (Exception ex)
