@@ -63,19 +63,21 @@ namespace Microsoft.AspNetCore.Http
                 throw new ArgumentNullException(nameof(encoding));
             }
 
+            var pipeWriter = response.Body.AsPipeWriter();
+
             // Need to call StartAsync before GetMemory/GetSpan
             if (!response.HasStarted)
             {
                 var startAsyncTask = response.StartAsync(cancellationToken);
                 if (!startAsyncTask.IsCompletedSuccessfully)
                 {
-                    return StartAndWriteAsyncAwaited(response, text, encoding, cancellationToken, startAsyncTask);
+                    return StartAndWriteAsyncAwaited(pipeWriter, text, encoding, cancellationToken, startAsyncTask);
                 }
             }
 
-            Write(response, text, encoding);
+            Write(pipeWriter, text, encoding);
 
-            var flushAsyncTask = response.BodyWriter.FlushAsync(cancellationToken);
+            var flushAsyncTask = pipeWriter.FlushAsync(cancellationToken);
             if (flushAsyncTask.IsCompletedSuccessfully)
             {
                 // Most implementations of ValueTask reset state in GetResult, so call it before returning a completed task.
@@ -86,17 +88,16 @@ namespace Microsoft.AspNetCore.Http
             return flushAsyncTask.AsTask();
         }
 
-        private static async Task StartAndWriteAsyncAwaited(this HttpResponse response, string text, Encoding encoding, CancellationToken cancellationToken, Task startAsyncTask)
+        private static async Task StartAndWriteAsyncAwaited(PipeWriter pipeWriter, string text, Encoding encoding, CancellationToken cancellationToken, Task startAsyncTask)
         {
             await startAsyncTask;
-            Write(response, text, encoding);
-            await response.BodyWriter.FlushAsync(cancellationToken);
+            Write(pipeWriter, text, encoding);
+            await pipeWriter.FlushAsync(cancellationToken);
         }
 
-        private static void Write(this HttpResponse response, string text, Encoding encoding)
+        private static void Write(PipeWriter pipeWriter, string text, Encoding encoding)
         {
             var minimumByteSize = GetEncodingMaxByteSize(encoding);
-            var pipeWriter = response.BodyWriter;
             var encodedLength = encoding.GetByteCount(text);
             var destination = pipeWriter.GetSpan(minimumByteSize);
 

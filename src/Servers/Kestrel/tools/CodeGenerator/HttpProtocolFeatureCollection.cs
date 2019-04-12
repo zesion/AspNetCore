@@ -13,8 +13,6 @@ namespace CodeGenerator
             {
                 "IHttpRequestFeature",
                 "IHttpResponseFeature",
-                "IResponseBodyPipeFeature",
-                "IRequestBodyPipeFeature",
                 "IHttpRequestIdentifierFeature",
                 "IServiceProvidersFeature",
                 "IHttpRequestLifetimeFeature",
@@ -62,8 +60,6 @@ namespace CodeGenerator
             {
                 "IHttpRequestFeature",
                 "IHttpResponseFeature",
-                "IResponseBodyPipeFeature",
-                "IRequestBodyPipeFeature",
                 "IHttpUpgradeFeature",
                 "IHttpRequestIdentifierFeature",
                 "IHttpRequestLifetimeFeature",

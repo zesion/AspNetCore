@@ -17,7 +17,6 @@ namespace Microsoft.AspNetCore.Http.Internal
         private readonly static Func<IFeatureCollection, IHttpResponseFeature> _nullResponseFeature = f => null;
         private readonly static Func<IFeatureCollection, IHttpResponseStartFeature> _nullResponseStartFeature = f => null;
         private readonly static Func<IFeatureCollection, IResponseCookiesFeature> _newResponseCookiesFeature = f => new ResponseCookiesFeature(f);
-        private readonly static Func<HttpContext, IResponseBodyPipeFeature> _newResponseBodyPipeFeature = context => new ResponseBodyPipeFeature(context);
 
         private readonly DefaultHttpContext _context;
         private FeatureReferences<FeatureInterfaces> _features;
@@ -51,9 +50,6 @@ namespace Microsoft.AspNetCore.Http.Internal
 
         private IResponseCookiesFeature ResponseCookiesFeature =>
             _features.Fetch(ref _features.Cache.Cookies, _newResponseCookiesFeature);
-
-        private IResponseBodyPipeFeature ResponseBodyPipeFeature =>
-            _features.Fetch(ref _features.Cache.BodyPipe, this.HttpContext, _newResponseBodyPipeFeature);
 
         public override HttpContext HttpContext { get { return _context; } }
 
@@ -109,12 +105,6 @@ namespace Microsoft.AspNetCore.Http.Internal
             get { return HttpResponseFeature.HasStarted; }
         }
 
-        public override PipeWriter BodyWriter
-        {
-            get { return ResponseBodyPipeFeature.Writer; }
-            set { ResponseBodyPipeFeature.Writer = value; }
-        }
-
         public override void OnStarting(Func<object, Task> callback, object state)
         {
             if (callback == null)
@@ -168,7 +158,6 @@ namespace Microsoft.AspNetCore.Http.Internal
         {
             public IHttpResponseFeature Response;
             public IResponseCookiesFeature Cookies;
-            public IResponseBodyPipeFeature BodyPipe;
             public IHttpResponseStartFeature ResponseStart;
         }
     }

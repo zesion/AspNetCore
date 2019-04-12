@@ -18,8 +18,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
 {
     internal partial class HttpProtocol : IHttpRequestFeature,
                                         IHttpResponseFeature,
-                                        IResponseBodyPipeFeature,
-                                        IRequestBodyPipeFeature,
                                         IHttpUpgradeFeature,
                                         IHttpConnectionFeature,
                                         IHttpRequestLifetimeFeature,
@@ -101,31 +99,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
             set
             {
                 RequestBody = value;
-                var requestPipeReader = new StreamPipeReader(RequestBody, new StreamPipeReaderAdapterOptions(
-                    minimumSegmentSize: KestrelMemoryPool.MinimumSegmentSize,
-                    minimumReadThreshold: KestrelMemoryPool.MinimumSegmentSize / 4,
-                    _context.MemoryPool));
-                RequestBodyPipeReader = requestPipeReader;
-
-                // The StreamPipeWrapper needs to be disposed as it hold onto blocks of memory
-                if (_wrapperObjectsToDispose == null)
-                {
-                    _wrapperObjectsToDispose = new List<IDisposable>();
-                }
-                _wrapperObjectsToDispose.Add(requestPipeReader);
-            }
-        }
-
-        PipeReader IRequestBodyPipeFeature.Reader
-        {
-            get
-            {
-                return RequestBodyPipeReader;
-            }
-            set
-            {
-                RequestBodyPipeReader = value;
-                RequestBody = new ReadOnlyPipeStream(RequestBodyPipeReader);
             }
         }
 
@@ -220,19 +193,6 @@ namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http
                 }
 
                 MaxRequestBodySize = value;
-            }
-        }
-
-        PipeWriter IResponseBodyPipeFeature.Writer
-        {
-            get
-            {
-                return ResponsePipeWriter;
-            }
-            set
-            {
-                ResponsePipeWriter = value;
-                ResponseBody = new WriteOnlyPipeStream(ResponsePipeWriter);
             }
         }
 

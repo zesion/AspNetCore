@@ -3,6 +3,7 @@
 
 using System;
 using System.IO;
+using System.IO.Pipelines;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -150,7 +151,8 @@ namespace Microsoft.AspNetCore.Http.Features
                 if (HasApplicationFormContentType(contentType))
                 {
                     var encoding = FilterEncoding(contentType.Encoding);
-                    var formReader = new FormPipeReader(_request.BodyReader, encoding)
+                    var pipeReader = _request.Body.AsPipeReader();
+                    var formReader = new FormPipeReader(pipeReader, encoding)
                     {
                         ValueCountLimit = _options.ValueCountLimit,
                         KeyLengthLimit = _options.KeyLengthLimit,

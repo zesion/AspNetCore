@@ -635,7 +635,7 @@ namespace Microsoft.AspNetCore.Server.Kestrel.InMemory.FunctionalTests
 
             await using (var server = new TestServer(async httpContext =>
             {
-                var readResult = await httpContext.Request.BodyReader.ReadAsync().AsTask().DefaultTimeout();
+                var readResult = await httpContext.Request.Body.AsPipeReader().ReadAsync().AsTask().DefaultTimeout();
                 // This will hang if 0 content length is not assumed by the server
                 Assert.True(readResult.IsCompleted);
             }, testContext))

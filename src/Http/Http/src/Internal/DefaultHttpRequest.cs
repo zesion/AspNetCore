@@ -20,7 +20,6 @@ namespace Microsoft.AspNetCore.Http.Internal
         private readonly static Func<DefaultHttpRequest, IFormFeature> _newFormFeature = r => new FormFeature(r, r._context.FormOptions ?? FormOptions.Default);
         private readonly static Func<IFeatureCollection, IRequestCookiesFeature> _newRequestCookiesFeature = f => new RequestCookiesFeature(f);
         private readonly static Func<IFeatureCollection, IRouteValuesFeature> _newRouteValuesFeature = f => new RouteValuesFeature();
-        private readonly static Func<HttpContext, IRequestBodyPipeFeature> _newRequestBodyPipeFeature = context => new RequestBodyPipeFeature(context);
 
         private readonly DefaultHttpContext _context;
         private FeatureReferences<FeatureInterfaces> _features;
@@ -62,9 +61,6 @@ namespace Microsoft.AspNetCore.Http.Internal
 
         private IRouteValuesFeature RouteValuesFeature =>
             _features.Fetch(ref _features.Cache.RouteValues, _newRouteValuesFeature);
-
-        private IRequestBodyPipeFeature RequestBodyPipeFeature =>
-            _features.Fetch(ref _features.Cache.BodyPipe, this.HttpContext, _newRequestBodyPipeFeature);
 
         public override PathString PathBase
         {
@@ -171,12 +167,6 @@ namespace Microsoft.AspNetCore.Http.Internal
             set { RouteValuesFeature.RouteValues = value; }
         }
 
-        public override PipeReader BodyReader
-        {
-            get { return RequestBodyPipeFeature.Reader; }
-            set { RequestBodyPipeFeature.Reader = value; }
-        }
-
         struct FeatureInterfaces
         {
             public IHttpRequestFeature Request;
@@ -184,7 +174,6 @@ namespace Microsoft.AspNetCore.Http.Internal
             public IFormFeature Form;
             public IRequestCookiesFeature Cookies;
             public IRouteValuesFeature RouteValues;
-            public IRequestBodyPipeFeature BodyPipe;
         }
     }
 }
