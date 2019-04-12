@@ -438,6 +438,7 @@
       "Files": [
         "appsettings.Development.json",
         "appsettings.json",
+        "libman.json",
         "Program.fs",
         "Startup.fs",
         "Controllers/HomeController.fs",
@@ -485,6 +486,7 @@
         "Data/WeatherForecast.cs",
         "Data/WeatherForecastService.cs",
         "wwwroot/css/site.css",
+        "wwwroot/favicon.ico",
         "appsettings.Development.json",
         "appsettings.json",
         "Program.cs",

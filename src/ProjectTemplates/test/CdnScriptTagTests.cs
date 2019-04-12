@@ -10,10 +10,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Templates.Test.Helpers;
@@ -26,120 +24,79 @@ namespace Templates.Test
     {
         private readonly ITestOutputHelper _output;
         private readonly HttpClient _httpClient;
-        private static List<ScriptTag> _scriptTags;
-        private static List<LinkTag> _linkTags;
-        private readonly string[] _packages;
 
-        public ProjectFactoryFixture ProjectFactory { get; }
+        public static ProjectFactoryFixture ProjectFactory { get; set; }
         public Project Project { get; set; }
 
-        public CdnScriptTagTests(ProjectFactoryFixture projectFactory)
-        {
-            ProjectFactory = projectFactory;
+        public static readonly IEnumerable<object[]> Templates = new object[][] {
+            new object[]{ "blazorserverside", null, 0 },
+            new object[]{ "razor", null, 4 },
+            new object[] { "mvc", null, 4 },
+            new object[] { "mvc", "F#", 4 } };
 
-            var searchPattern = "*.nupkg";
-            _packages = Directory.EnumerateFiles(
-                    ResolveFolder("ArtifactsShippingPackagesDir"),
-                    searchPattern)
-                .Concat(Directory.EnumerateFiles(
-                    ResolveFolder("ArtifactsNonShippingPackagesDir"),
-                    searchPattern))
-                .ToArray();
-
-            _scriptTags = new List<ScriptTag>();
-            _linkTags = new List<LinkTag>();
-            foreach (var packagePath in _packages)
-            {
-                var tags = GetTags(packagePath);
-                _scriptTags.AddRange(tags.scripts);
-                _linkTags.AddRange(tags.links);
-            }
-        }
-
-        private static string ResolveFolder(string folder) =>
-            typeof(CdnScriptTagTests).Assembly
-                .GetCustomAttributes<AssemblyMetadataAttribute>()
-                .Single(a => a.Key == folder).Value;
-
-        public CdnScriptTagTests(ITestOutputHelper output)
+        public CdnScriptTagTests(ITestOutputHelper output, ProjectFactoryFixture projectFactory)
         {
             _output = output;
             _httpClient = new HttpClient();
+            ProjectFactory = projectFactory;
         }
 
-        public static IEnumerable<object[]> SubresourceIntegrityCheckScriptData
+        [Theory]
+        [MemberData(nameof(Templates))]
+        public async Task CheckScriptSubresourceIntegrity(string templateName, string language, int expectedTags)
         {
-            get
-            {
-                var scriptTags = _scriptTags
-                    .Where(st => st.FallbackSrc != null)
-                    .Select(st => new object[] { st });
-                Assert.NotEmpty(scriptTags);
-                return scriptTags;
-            }
-        }
+            (IEnumerable<ScriptTag> scriptTags, List<LinkTag> _) = await GetTagsAsync(templateName, language, _output);
+            scriptTags = scriptTags.Where(s => s.FallbackSrc != null);
 
-        public static IEnumerable<object[]> SubresourceIntegrityCheckLinkData
-        {
-            get
+            Assert.Equal(expectedTags, scriptTags.Count());
+            foreach (var scriptTag in scriptTags.Where(s => s.FallbackSrc != null))
             {
-                var linkTags = _linkTags
-                    .Where(st => st.FallbackHRef != null)
-                    .Select(st => new object[] { st });
-                Assert.NotEmpty(linkTags);
-                return linkTags;
+                var expectedIntegrity = await GetShaIntegrity(scriptTag);
+                if (!string.Equals(expectedIntegrity, scriptTag.Integrity, StringComparison.OrdinalIgnoreCase))
+                {
+                    Assert.False(true, $"Expected {scriptTag.Src} to have Integrity '{expectedIntegrity}' but it had '{scriptTag.Integrity}'.");
+                }
             }
         }
 
         [Theory]
-        [MemberData(nameof(SubresourceIntegrityCheckScriptData))]
-        public async Task CheckScriptSubresourceIntegrity(ScriptTag scriptTag)
+        [MemberData(nameof(Templates))]
+        public async Task CheckLinkSubresourceIntegrity(string templateName, string language, int expectedTags)
         {
-            var expectedIntegrity = await GetShaIntegrity(scriptTag);
-            if (!string.Equals(expectedIntegrity, scriptTag.Integrity, StringComparison.OrdinalIgnoreCase))
+            var (_, linkTags) = await GetTagsAsync(templateName, language, _output);
+
+            Assert.Equal(expectedTags, linkTags.Count);
+            foreach (var linkTag in linkTags)
             {
-                Assert.False(true, $"Expected {scriptTag.Src} to have Integrity '{expectedIntegrity}' but it had '{scriptTag.Integrity}'.");
+                string expectedIntegrity = await GetShaIntegrity(linkTag);
+                if (!expectedIntegrity.Equals(linkTag.Integrity, StringComparison.OrdinalIgnoreCase))
+                {
+                    Assert.False(true, $"Expected {linkTag.HRef} to have Integrity '{expectedIntegrity}' but it had '{linkTag.Integrity}'.");
+                }
             }
         }
 
         [Theory]
-        [MemberData(nameof(SubresourceIntegrityCheckLinkData))]
-        public async Task CheckLinkSubresourceIntegrity(LinkTag linkTag)
+        [MemberData(nameof(Templates))]
+        public async Task FallbackSrcContent_Matches_CDNContent(string templateName, string language, int expectedTags)
         {
-            string expectedIntegrity = await GetShaIntegrity(linkTag);
-            if (!expectedIntegrity.Equals(linkTag.Integrity, StringComparison.OrdinalIgnoreCase))
+            var (scriptTags, _) = await GetTagsAsync(templateName, language, _output);
+
+            Assert.Equal(expectedTags, scriptTags.Count);
+            foreach(var scriptTag in scriptTags)
             {
-                Assert.False(true, $"Expected {linkTag.HRef} to have Integrity '{expectedIntegrity}' but it had '{linkTag.Integrity}'.");
+                Project = await ProjectFactory.GetOrCreateProject($"CDNSRC{scriptTag.Project}", _output);
+
+                var fallbackSrc = scriptTag.FallbackSrc
+                    .TrimStart('~')
+                    .TrimStart('/');
+
+                var cdnContent = await GetStringFromCDN(scriptTag.Src);
+
+                var fallbackSrcContent = await GetFileContentFromTemplateAsync(scriptTag, fallbackSrc);
+
+                Assert.Equal(RemoveLineEndings(cdnContent), RemoveLineEndings(fallbackSrcContent));
             }
-        }
-
-        public static IEnumerable<object[]> FallbackSrcCheckData
-        {
-            get
-            {
-                var scriptTags = _scriptTags
-                    .Where(st => st.FallbackSrc != null)
-                    .Select(st => new object[] { st });
-                Assert.NotEmpty(scriptTags);
-                return scriptTags;
-            }
-        }
-
-        [Theory]
-        [MemberData(nameof(FallbackSrcCheckData))]
-        public async Task FallbackSrcContent_Matches_CDNContent(ScriptTag scriptTag)
-        {
-            Project = await ProjectFactory.GetOrCreateProject($"CDNSRC{scriptTag.Project}", _output);
-
-            var fallbackSrc = scriptTag.FallbackSrc
-                .TrimStart('~')
-                .TrimStart('/');
-
-            var cdnContent = await GetStringFromCDN(scriptTag.Src);
-            
-            var fallbackSrcContent = await GetFileContentFromTemplateAsync(scriptTag, fallbackSrc);
-
-            Assert.Equal(RemoveLineEndings(cdnContent), RemoveLineEndings(fallbackSrcContent));
         }
 
         public struct LinkTag
@@ -161,12 +118,11 @@ namespace Templates.Test
             public string Integrity;
             public string FallbackSrc;
             public string FileName;
-            public string Entry;
             public string Project;
 
             public override string ToString()
             {
-                return $"{Src}, {Entry}";
+                return $"{Src}, {FileName}";
             }
         }
 
@@ -228,60 +184,64 @@ namespace Templates.Test
             }
         }
 
-        private static (List<ScriptTag> scripts, List<LinkTag> links) GetTags(string zipFile)
+        private async Task<(List<ScriptTag> scripts, List<LinkTag> links)> GetTagsAsync(string templateName, string language, ITestOutputHelper output)
         {
             var scriptTags = new List<ScriptTag>();
             var linkTags = new List<LinkTag>();
-            using (var zip = new ZipArchive(File.OpenRead(zipFile), ZipArchiveMode.Read, leaveOpen: false))
+            Project = await ProjectFactory.GetOrCreateProject($"{templateName}.CdnCheck", output);
+            var createResult = await Project.RunDotNetNewAsync(templateName, language: language);
+            Assert.True(0 == createResult.ExitCode, ErrorMessages.GetFailedProcessMessage("create/restore", Project, createResult));
+
+            var buildResult = await Project.RunDotNetBuildAsync();
+            Assert.True(0 == buildResult.ExitCode, ErrorMessages.GetFailedProcessMessage("build", Project, buildResult));
+
+            foreach(var file in Project.GetFiles())
             {
-                foreach (var entry in zip.Entries)
+                if (!string.Equals(".cshtml", Path.GetExtension(file), StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(".razor", Path.GetExtension(file), StringComparison.OrdinalIgnoreCase))
                 {
-                    if (!string.Equals(".cshtml", Path.GetExtension(entry.Name), StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
+                    continue;
+                }
 
-                    IHtmlDocument htmlDocument;
-                    var options = new HtmlParserOptions
-                    {
-                        IsStrictMode = false,
-                        IsEmbedded = false,
-                    };
-                    var config = Configuration.Default;
-                    var htmlParser = new HtmlParser(options, config);
-                    using (var reader = new StreamReader(entry.Open()))
-                    {
-                        htmlDocument = htmlParser.Parse(entry.Open());
-                    }
+                IHtmlDocument htmlDocument;
+                var options = new HtmlParserOptions
+                {
+                    IsStrictMode = false,
+                    IsEmbedded = false,
+                };
+                var config = Configuration.Default;
+                var htmlParser = new HtmlParser(options, config);
+                using (var stream = File.Open(file, FileMode.Open))
+                {
+                    htmlDocument = htmlParser.Parse(stream);
+                }
 
-                    foreach (IElement link in htmlDocument.Body.GetElementsByTagName("link"))
+                foreach (IElement link in htmlDocument.Body.GetElementsByTagName("link"))
+                {
+                    linkTags.Add(new LinkTag
                     {
-                        linkTags.Add(new LinkTag
-                        {
-                            HRef = link.GetAttribute("href"),
-                            Integrity = link.GetAttribute("integrity"),
-                            FallbackHRef = link.GetAttribute("asp-fallback-href"),
-                        });
-                    }
+                        HRef = link.GetAttribute("href"),
+                        Integrity = link.GetAttribute("integrity"),
+                        FallbackHRef = link.GetAttribute("asp-fallback-href"),
+                    });
+                }
 
-                    foreach (var scriptElement in htmlDocument.Scripts)
+                foreach (var scriptElement in htmlDocument.Scripts)
+                {
+                    var fallbackSrcAttribute = scriptElement.Attributes
+                        .FirstOrDefault(attr => string.Equals("asp-fallback-src", attr.Name, StringComparison.OrdinalIgnoreCase));
+
+                    scriptTags.Add(new ScriptTag
                     {
-                        var fallbackSrcAttribute = scriptElement.Attributes
-                            .FirstOrDefault(attr => string.Equals("asp-fallback-src", attr.Name, StringComparison.OrdinalIgnoreCase));
-
-                        scriptTags.Add(new ScriptTag
-                        {
-                            Src = scriptElement.Source,
-                            Integrity = scriptElement.Integrity,
-                            FallbackSrc = fallbackSrcAttribute?.Value,
-                            FileName = Path.GetFileName(zipFile),
-                            Entry = entry.FullName,
-                            Project = entry.FullName.Split('/')[1]
-                        });
-                    }
-
+                        Src = scriptElement.Source,
+                        Integrity = scriptElement.Integrity,
+                        FallbackSrc = fallbackSrcAttribute?.Value,
+                        FileName = file,
+                        Project = templateName
+                    });
                 }
             }
+
             return (scriptTags, linkTags);
         }
 
