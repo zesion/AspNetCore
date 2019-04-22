@@ -37,6 +37,10 @@
     <ProjectReference Include="..\testassets\TestServer\TestServer.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <HelixContent Include="package.json" />
+  </ItemGroup>
+   
   <!-- Shared testing infrastructure for running E2E tests using selenium -->
   <Import Project="$(SharedSourceRoot)E2ETesting\E2ETesting.targets" />
 
