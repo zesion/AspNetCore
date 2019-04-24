@@ -38,7 +38,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <HelixPreCommand>yarn install</HelixPreCommand>
+    <HelixPreCommand Include="yarn install" />
     <HelixContent Include="package.json" />
   </ItemGroup>
    
