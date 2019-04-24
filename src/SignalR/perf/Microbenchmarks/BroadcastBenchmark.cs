@@ -19,10 +19,10 @@ namespace Microsoft.AspNetCore.SignalR.Microbenchmarks
         private DefaultHubLifetimeManager<Hub> _hubLifetimeManager;
         private HubContext<Hub> _hubContext;
 
-        [Params(1, 10, 1000)]
+        [Params(1000)]
         public int Connections;
 
-        [Params("json", "msgpack")]
+        [Params("json")]
         public string Protocol;
 
         [GlobalSetup]
@@ -57,11 +57,11 @@ namespace Microsoft.AspNetCore.SignalR.Microbenchmarks
             _hubContext = new HubContext<Hub>(_hubLifetimeManager);
         }
 
-        [Benchmark]
+        /*[Benchmark]
         public Task SendAsyncGroup()
         {
             return _hubContext.Clients.Group(TestGroupName).SendAsync("Method");
-        }
+        }*/
 
         [Benchmark]
         public Task SendAsyncAll()
