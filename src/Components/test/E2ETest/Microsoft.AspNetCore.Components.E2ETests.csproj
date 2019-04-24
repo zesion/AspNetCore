@@ -40,6 +40,7 @@
   <ItemGroup>
     <HelixPreCommand Include="yarn install" />
     <HelixContent Include="package.json" />
+    <HelixContent Include="yarn.lock" />
   </ItemGroup>
    
   <!-- Shared testing infrastructure for running E2E tests using selenium -->
