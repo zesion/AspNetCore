@@ -43,9 +43,9 @@ namespace Microsoft.AspNetCore.SignalR
             return new Enumerator(this);
         }
 
-        public readonly struct Enumerator
+        public struct Enumerator
         {
-            private readonly NoAllocConcurrentDictionary<string, HubConnectionContext>.Enumerator _enumerator;
+            private NoAllocConcurrentDictionary<string, HubConnectionContext>.Enumerator _enumerator;
 
             public Enumerator(HubConnectionStore hubConnectionList)
             {
