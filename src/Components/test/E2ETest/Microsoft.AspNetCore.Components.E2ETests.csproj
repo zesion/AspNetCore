@@ -38,7 +38,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <HelixPreCommand Include="npm -i yarn;yarn install" />
+    <HelixPreCommand Include="npm i yarn;yarn install" />
     <HelixContent Include="package.json" />
     <HelixContent Include="yarn.lock" />
   </ItemGroup>
