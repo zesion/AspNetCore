@@ -115,7 +115,6 @@ namespace Microsoft.AspNetCore.E2ETesting
                 Directory.Create(trackingFolder));
             }
 
-            // Process cleanup isn't as important on helix
             if (!Directory.Exists(trackingFolder))
             {
                 throw new InvalidOperationException($"Invalid tracking folder. Set the 'SeleniumProcessTrackingFolder' MSBuild property to a valid folder.");
