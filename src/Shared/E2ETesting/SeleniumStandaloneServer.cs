@@ -245,10 +245,6 @@ Captured output lines:
 
         private static async Task<string> WriteTrackingFileAsync(ITestOutputHelper output, string trackingFolder, Process process)
         {
-            if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("helix")))
-            {
-            }
-            
             var pidFile = Path.Combine(trackingFolder, $"{process.Id}.{Guid.NewGuid()}.pid");
             for (var i = 0; i < 3; i++)
             {
