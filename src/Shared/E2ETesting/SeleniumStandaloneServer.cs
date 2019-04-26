@@ -112,7 +112,7 @@ namespace Microsoft.AspNetCore.E2ETesting
             {
                 // Just create a random tracking folder on helix
                 trackingFolder = Path.Combine(Directory.GetCurrentDirectory(), Path.GetRandomFileName());
-                Directory.CreateDirectory(trackingFolder));
+                Directory.CreateDirectory(trackingFolder);
             }
 
             if (!Directory.Exists(trackingFolder))
