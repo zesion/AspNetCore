@@ -107,6 +107,15 @@ namespace Microsoft.AspNetCore.E2ETesting
             // It's important that we get the folder value before we start the process to prevent
             // untracked processes when the tracking folder is not correctly configure.
             var trackingFolder = GetProcessTrackingFolder();
+                
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("helix")))
+            {
+                // Just create a random tracking folder on helix
+                trackingFolder = Path.Combine(Directory.GetCurrentDirectory(), Path.GetRandomFileName());
+                Directory.Create(trackingFolder));
+            }
+
+            // Process cleanup isn't as important on helix
             if (!Directory.Exists(trackingFolder))
             {
                 throw new InvalidOperationException($"Invalid tracking folder. Set the 'SeleniumProcessTrackingFolder' MSBuild property to a valid folder.");
@@ -236,6 +245,10 @@ Captured output lines:
 
         private static async Task<string> WriteTrackingFileAsync(ITestOutputHelper output, string trackingFolder, Process process)
         {
+            if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("helix")))
+            {
+            }
+            
             var pidFile = Path.Combine(trackingFolder, $"{process.Id}.{Guid.NewGuid()}.pid");
             for (var i = 0; i < 3; i++)
             {
