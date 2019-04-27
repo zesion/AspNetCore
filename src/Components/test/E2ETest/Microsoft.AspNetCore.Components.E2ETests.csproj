@@ -41,6 +41,7 @@
     <HelixPreCommand Include="npm i yarn;yarn install" />
     <HelixContent Include="package.json" />
     <HelixContent Include="yarn.lock" />
+    <HelixProjectTargetQueue Include="Windows.10.Amd64.ClientRS4.VS2017.Open" />
   </ItemGroup>
    
   <!-- Shared testing infrastructure for running E2E tests using selenium -->
