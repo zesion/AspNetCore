@@ -50,4 +50,12 @@
   <!-- Shared testing infrastructure for running E2E tests using selenium -->
   <Import Project="$(SharedSourceRoot)E2ETesting\E2ETesting.targets" />
 
+  <Target Name="PublishAssets" AfterTargets="Publish">
+    <ItemGroup>
+      <_PublishFiles Include="$(MSBuildThisFileDirectory)..\testassets\**\*.*" />
+    </ItemGroup>
+    <Copy
+      SourceFiles="@(_PublishFiles)"
+      DestinationFolder="$(PublishDir)\%(RecursiveDir)" />
+  </Target>
 </Project>
