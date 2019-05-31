@@ -2,8 +2,8 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
-using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.CommandLineUtils;
 using Microsoft.Extensions.Tools.Internal;
@@ -22,6 +22,8 @@ namespace Microsoft.DotNet.OpenApi.Commands
 
         internal readonly CommandArgument _sourceFileArg;
 
+        private readonly string[] ApprovedExtensions = new[] { ".json", ".yaml", ".yml" };
+
         protected override Task<int> ExecuteCoreAsync()
         {
             var projectFilePath = ResolveProjectFile(ProjectFileOption);
@@ -34,6 +36,11 @@ namespace Microsoft.DotNet.OpenApi.Commands
                 EnsurePackagesInProject(projectFilePath, codeGenerator);
                 if (IsLocalFile(sourceFile))
                 {
+                    if (ApprovedExtensions.Any(e => sourceFile.EndsWith(e)))
+                    {
+                        Warning.WriteLine($"The extension for the given file '{sourceFile}' should have been one of: {string.Join(",", ApprovedExtensions)}.");
+                        Warning.WriteLine($"The reference has been added, but may fail at build-time if the format is not correct.");
+                    }
                     AddServiceReference(OpenApiReference, projectFilePath, sourceFile);
                 }
                 else
@@ -47,8 +54,7 @@ namespace Microsoft.DotNet.OpenApi.Commands
 
         private bool IsLocalFile(string file)
         {
-            var fullPath = GetFullPath(file);
-            return File.Exists(fullPath) && (file.EndsWith(".json") || file.EndsWith(".yaml") || file.EndsWith(".yml"));
+            return File.Exists(GetFullPath(file));
         }
 
         protected override bool ValidateArguments()

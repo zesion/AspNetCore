@@ -1,6 +1,7 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
+using System;
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -27,6 +28,30 @@ namespace Microsoft.DotNet.OpenApi.Add.Tests
             Assert.Equal(0, run);
 
             Assert.Contains("Usage: openapi ", _output.ToString());
+        }
+
+        [Fact]
+        public void OpenApi_NoProjectExists()
+        {
+            var app = GetApplication();
+            _tempDir.Create();
+            var run = app.Execute(new string[] { "add", "file", "randomfile.json"});
+
+            Assert.Contains("No project files were found in the current directory", _error.ToString());
+            Assert.DoesNotContain(":line ", _error.ToString());
+            Assert.Equal(1, run);
+        }
+
+        [Fact]
+        public void OpenApi_ExplicitProject_Missing()
+        {
+            var app = GetApplication();
+            _tempDir.Create();
+            var csproj = "fake.csproj";
+            var run = app.Execute(new string[] { "add", "file", "--project", csproj, "randomfile.json" });
+
+            Assert.Contains($"The project '{Path.Combine(_tempDir.Root, csproj)}' does not exist.", _error.ToString());
+            Assert.Equal(1, run);
         }
 
         [Fact]

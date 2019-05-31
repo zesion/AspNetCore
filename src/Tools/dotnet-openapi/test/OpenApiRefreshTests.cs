@@ -31,8 +31,7 @@ namespace Microsoft.DotNet.OpenApi.Refresh.Tests
             json += "trash";
             await File.WriteAllTextAsync(expectedJsonPath, json);
 
-            var jsonInfo = new FileInfo(expectedJsonPath);
-            var firstWriteTime = jsonInfo.LastWriteTime;
+            var firstWriteTime = File.GetLastWriteTime(expectedJsonPath);
 
             Thread.Sleep(TimeSpan.FromSeconds(1));
 
@@ -42,7 +41,7 @@ namespace Microsoft.DotNet.OpenApi.Refresh.Tests
             Assert.True(string.IsNullOrEmpty(_error.ToString()), $"Threw error: {_error.ToString()}");
             Assert.Equal(0, run);
 
-            var secondWriteTime = new FileInfo(expectedJsonPath).LastWriteTime;
+            var secondWriteTime = File.GetLastWriteTime(expectedJsonPath);
             Assert.True(firstWriteTime < secondWriteTime, $"File wasn't updated! {firstWriteTime} {secondWriteTime}");
         }
     }

@@ -47,12 +47,12 @@ namespace Microsoft.DotNet.OpenApi.Commands
 
             if (IsUrl(sourceFile))
             {
-                var destination = Path.Combine(WorkingDirectory, outputFile);
+                var destination = GetFullPath(outputFile);
                 // We have to download the file from that URL, save it to a local file, then create a AddServiceLocalReference
                 // Use this task https://github.com/aspnet/AspNetCore/commit/91dcbd44c10af893374cfb36dc7a009caa4818d0#diff-ea7515a116529b85ad5aa8e06e4acc8e
                 await DownloadToFileAsync(sourceFile, destination, overwrite: false);
 
-                AddServiceReference(OpenApiReference, projectFilePath, destination, sourceFile);
+                AddServiceReference(OpenApiReference, projectFilePath, outputFile, sourceFile);
             }
             else
             {

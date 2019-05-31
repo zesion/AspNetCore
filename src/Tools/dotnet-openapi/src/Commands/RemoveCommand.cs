@@ -35,11 +35,7 @@ namespace Microsoft.DotNet.OpenApi.Commands
             {
                 RemoveServiceReference(OpenApiReference, projectFile, sourceFile);
 
-                if (!Path.IsPathRooted(sourceFile))
-                {
-                    sourceFile = Path.Combine(WorkingDirectory, sourceFile);
-                }
-                File.Delete(sourceFile);
+                File.Delete(GetFullPath(sourceFile));
             }
 
             return Task.FromResult(0);

@@ -7,10 +7,10 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Microsoft.Build.Evaluation;
 using Microsoft.Extensions.CommandLineUtils;
-using Microsoft.Extensions.OpenApi.Tasks;
 
 namespace Microsoft.DotNet.OpenApi.Commands
 {
@@ -49,6 +49,11 @@ namespace Microsoft.DotNet.OpenApi.Commands
 
         internal CommandOption Help { get; }
 
+        public TextWriter Warning
+        {
+            get { return Out; }
+        }
+
         protected abstract Task<int> ExecuteCoreAsync();
 
         protected abstract bool ValidateArguments();
@@ -70,10 +75,10 @@ namespace Microsoft.DotNet.OpenApi.Commands
             if (projectOption.HasValue())
             {
                 project = projectOption.Value();
-                project = Path.Combine(WorkingDirectory, project);
+                project = GetFullPath(project);
                 if (!File.Exists(project))
                 {
-                    Error.Write("The given project does not exist.");
+                    throw new ArgumentException($"The project '{project}' does not exist.");
                 }
             }
             else
@@ -81,11 +86,11 @@ namespace Microsoft.DotNet.OpenApi.Commands
                 var projects = Directory.GetFiles(WorkingDirectory, "*.csproj", SearchOption.TopDirectoryOnly);
                 if (projects.Length == 0)
                 {
-                    Error.Write("No project files were found in the current directory. Either move to a new directory or provide the project explicitly");
+                    throw new ArgumentException("No project files were found in the current directory. Either move to a new directory or provide the project explicitly");
                 }
                 if (projects.Length > 1)
                 {
-                    Error.Write("More than one project was found in this directory, either remove a duplicate or explicitly provide the project.");
+                    throw new ArgumentException("More than one project was found in this directory, either remove a duplicate or explicitly provide the project.");
                 }
 
                 project = projects[0];
@@ -166,7 +171,7 @@ namespace Microsoft.DotNet.OpenApi.Commands
             }
 
             var content = await application.DownloadProvider(url);
-            await WriteToFile(content, destinationPath, overwrite);
+            await WriteToFileAsync(content, destinationPath, overwrite);
         }
 
         internal void EnsurePackagesInProject(FileInfo projectFile, CodeGenerator codeGenerator)
@@ -239,13 +244,33 @@ namespace Microsoft.DotNet.OpenApi.Commands
             return result;
         }
 
-        private async Task WriteToFile(Stream content, string destinationPath, bool overwrite)
+        private static byte[] GetHash(Stream stream)
         {
+            SHA256 algorithm;
+            try
+            {
+                algorithm = SHA256.Create();
+            }
+            catch (TargetInvocationException)
+            {
+                // SHA256.Create is documented to throw this exception on FIPS-compliant machines. See
+                // https://msdn.microsoft.com/en-us/library/z08hz7ad Fall back to a FIPS-compliant SHA256 algorithm.
+                algorithm = new SHA256CryptoServiceProvider();
+            }
+
+            using (algorithm)
+            {
+                return algorithm.ComputeHash(stream);
+            }
+        }
+
+        private async Task WriteToFileAsync(Stream content, string destinationPath, bool overwrite)
+        {
+            content.Seek(0, SeekOrigin.Begin);
             var destinationExists = File.Exists(destinationPath);
             if (destinationExists && !overwrite)
             {
-                await Out.WriteLineAsync($"Not overwriting existing file '{destinationPath}'.");
-                return;
+                throw new ArgumentException($"File '{destinationPath}' already exists. Aborting to avoid interference.");
             }
 
             await Out.WriteLineAsync($"Downloading to '{destinationPath}'.");
@@ -255,12 +280,12 @@ namespace Microsoft.DotNet.OpenApi.Commands
                 if (destinationExists)
                 {
                     // Check hashes before using the downloaded information.
-                    var downloadHash = DownloadFileExtensions.GetHash(content);
+                    var downloadHash = GetHash(content);
 
                     byte[] destinationHash;
                     using (var destinationStream = File.OpenRead(destinationPath))
                     {
-                        destinationHash = DownloadFileExtensions.GetHash(destinationStream);
+                        destinationHash = GetHash(destinationStream);
                     }
 
                     var sameHashes = downloadHash.Length == destinationHash.Length;
@@ -287,11 +312,11 @@ namespace Microsoft.DotNet.OpenApi.Commands
 
                 // Create or overwrite the destination file.
                 reachedCopy = true;
-                using (var outStream = File.Create(destinationPath))
+                using (var fileStream = new FileStream(destinationPath, FileMode.OpenOrCreate, FileAccess.Write))
                 {
-                    await content.CopyToAsync(outStream);
-
-                    await outStream.FlushAsync();
+                    fileStream.Seek(0, SeekOrigin.Begin);
+                    content.Seek(0, SeekOrigin.Begin);
+                    await content.CopyToAsync(fileStream);
                 }
             }
             catch (Exception ex)

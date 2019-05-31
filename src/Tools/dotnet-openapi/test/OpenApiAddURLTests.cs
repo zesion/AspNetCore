@@ -1,6 +1,7 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
+using System;
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -25,7 +26,7 @@ namespace Microsoft.DotNet.OpenApi.Add.Tests
             Assert.True(string.IsNullOrEmpty(_error.ToString()), $"Threw error: {_error.ToString()}");
             Assert.Equal(0, run);
 
-            var expectedJsonName = Path.Combine(_tempDir.Root, "openapi", "openapi.json");
+            var expectedJsonName = Path.Combine("openapi", "openapi.json");
 
             // csproj contents
             using (var csprojStream = new FileInfo(project.Project.Path).OpenRead())
@@ -58,7 +59,7 @@ namespace Microsoft.DotNet.OpenApi.Add.Tests
             Assert.True(string.IsNullOrEmpty(_error.ToString()), $"Threw error: {_error.ToString()}");
             Assert.Equal(0, run);
 
-            var expectedJsonName = Path.Combine(_tempDir.Root, "outputdir", "file.yaml");
+            var expectedJsonName = Path.Combine("outputdir", "file.yaml");
 
             // csproj contents
             using (var csprojStream = new FileInfo(project.Project.Path).OpenRead())
@@ -70,8 +71,9 @@ namespace Microsoft.DotNet.OpenApi.Add.Tests
     $@"<OpenApiReference Include=""{expectedJsonName}"" SourceUrl=""{FakeOpenApiUrl}"" />", content);
             }
 
-            Assert.True(File.Exists(expectedJsonName));
-            using (var jsonStream = new FileInfo(expectedJsonName).OpenRead())
+            var resultFile = Path.Combine(_tempDir.Root, expectedJsonName);
+            Assert.True(File.Exists(resultFile));
+            using (var jsonStream = new FileInfo(resultFile).OpenRead())
             using (var reader = new StreamReader(jsonStream))
             {
                 var content = await reader.ReadToEndAsync();

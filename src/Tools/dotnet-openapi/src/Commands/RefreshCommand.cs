@@ -3,7 +3,6 @@
 
 using System;
 using System.IO;
-using System.Net.Http;
 using System.Threading.Tasks;
 using Microsoft.Build.Evaluation;
 using Microsoft.Extensions.CommandLineUtils;
@@ -41,7 +40,6 @@ namespace Microsoft.DotNet.OpenApi.Commands
 
             return 0;
         }
-
 
         private string FindReferenceFromUrl(FileInfo projectFile, string url)
         {

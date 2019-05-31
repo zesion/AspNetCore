@@ -2,7 +2,6 @@
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -67,6 +66,8 @@ namespace Microsoft.DotNet.OpenApi.Tests
         {
             var stream = new MemoryStream();
             var writer = new StreamWriter(stream);
+
+            _outputHelper.WriteLine($"Content to write: {Content}");
             writer.Write(Content);
             writer.Flush();
             stream.Position = 0;
