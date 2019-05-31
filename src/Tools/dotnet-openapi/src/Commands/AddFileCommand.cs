@@ -24,7 +24,7 @@ namespace Microsoft.DotNet.OpenApi.Commands
 
         private readonly string[] ApprovedExtensions = new[] { ".json", ".yaml", ".yml" };
 
-        protected override Task<int> ExecuteCoreAsync()
+        protected override async Task<int> ExecuteCoreAsync()
         {
             var projectFilePath = ResolveProjectFile(ProjectFileOption);
 
@@ -38,8 +38,8 @@ namespace Microsoft.DotNet.OpenApi.Commands
                 {
                     if (ApprovedExtensions.Any(e => sourceFile.EndsWith(e)))
                     {
-                        Warning.WriteLine($"The extension for the given file '{sourceFile}' should have been one of: {string.Join(",", ApprovedExtensions)}.");
-                        Warning.WriteLine($"The reference has been added, but may fail at build-time if the format is not correct.");
+                        await Warning.WriteLineAsync($"The extension for the given file '{sourceFile}' should have been one of: {string.Join(",", ApprovedExtensions)}.");
+                        await Warning.WriteLineAsync($"The reference has been added, but may fail at build-time if the format is not correct.");
                     }
                     AddServiceReference(OpenApiReference, projectFilePath, sourceFile);
                 }
@@ -49,7 +49,7 @@ namespace Microsoft.DotNet.OpenApi.Commands
                 }
             }
 
-            return Task.FromResult(0);
+            return 0;
         }
 
         private bool IsLocalFile(string file)

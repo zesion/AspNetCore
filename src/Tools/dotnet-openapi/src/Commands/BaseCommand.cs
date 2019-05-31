@@ -127,21 +127,26 @@ namespace Microsoft.DotNet.OpenApi.Commands
         {
             var project = LoadProject(projectFile);
             var items = project.GetItems(tagName);
-            var item = items.FirstOrDefault((i) => {
+            var fileItems = items.Where((i) => {
                 return string.Equals(GetFullPath(i.EvaluatedInclude), GetFullPath(sourceFile), StringComparison.Ordinal);
             });
 
+            if (fileItems.Count() > 1)
+            {
+                Warning.Write($"More than one reference to {sourceFile} already exists. Duplicate references could lead to unexpected behavior.");
+                return;
+            }
+
             if (sourceUrl != null)
             {
-                var urlMatch = items.SingleOrDefault(i => string.Equals(i.GetMetadataValue(SourceUrlAttrName), sourceUrl));
-                if (urlMatch != null)
+                if(items.Any(i => string.Equals(i.GetMetadataValue(SourceUrlAttrName), sourceUrl)))
                 {
-                    Out.Write($"A reference to '{sourceUrl}' already exists in '{project.FullPath}'.");
+                    Warning.Write($"A reference to '{sourceUrl}' already exists in '{project.FullPath}'.");
                     return;
                 }
             }
 
-            if (item == null)
+            if (fileItems.Count() == 0)
             {
                 var metadata = new Dictionary<string, string>();
 
@@ -154,7 +159,8 @@ namespace Microsoft.DotNet.OpenApi.Commands
             }
             else
             {
-                Out.Write($"A reference to '{sourceFile}' already exists in '{project.FullPath}'.");
+                Warning.Write($"A reference to '{sourceFile}' already exists in '{project.FullPath}'.");
+                return;
             }
         }
 
@@ -267,6 +273,7 @@ namespace Microsoft.DotNet.OpenApi.Commands
         private async Task WriteToFileAsync(Stream content, string destinationPath, bool overwrite)
         {
             content.Seek(0, SeekOrigin.Begin);
+            destinationPath = GetFullPath(destinationPath);
             var destinationExists = File.Exists(destinationPath);
             if (destinationExists && !overwrite)
             {

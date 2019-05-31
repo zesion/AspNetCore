@@ -63,6 +63,41 @@ namespace Microsoft.DotNet.OpenApi.Remove.Tests
         }
 
         [Fact]
+        public async Task OpenApi_Remove_ViaUrl()
+        {
+            _tempDir
+                .WithCSharpProject("testproj")
+                .WithTargetFrameworks("netcoreapp3.0")
+                .Dir()
+                .WithContentFile("Startup.cs")
+                .Create();
+
+            var url = "https://contoso.com/swagger.json";
+            var add = GetApplication();
+            var run = add.Execute(new[] { "add", "url", url});
+
+            Assert.True(string.IsNullOrEmpty(_error.ToString()), $"Threw error: {_error.ToString()}");
+            Assert.Equal(0, run);
+
+            var remove = GetApplication();
+            var removeRun = remove.Execute(new[] { "remove", url});
+
+            Assert.True(string.IsNullOrEmpty(_error.ToString()), $"Threw error: {_error.ToString()}");
+            Assert.Equal(0, removeRun);
+
+            // csproj contents
+            var csproj = new FileInfo(Path.Join(_tempDir.Root, "testproj.csproj"));
+            using (var csprojStream = csproj.OpenRead())
+            using (var reader = new StreamReader(csprojStream))
+            {
+                var content = await reader.ReadToEndAsync();
+                // Don't remove the package reference, they might have taken other dependencies on it
+                Assert.Contains("<PackageReference Include=\"NSwag.ApiDescription.Client\" Version=\"", content);
+                Assert.DoesNotContain($"<OpenApiReference", content);
+            }
+        }
+
+        [Fact]
         public async Task OpenApi_Remove_Project()
         {
             _tempDir
@@ -112,6 +147,51 @@ namespace Microsoft.DotNet.OpenApi.Remove.Tests
                     Assert.DoesNotContain($"<OpenApiProjectReference Include=\"{refProjFile}\"", content);
                 }
             }
+        }
+
+        [Fact]
+        public async Task OpenApi_Remove_Multiple()
+        {
+            var nswagJsonFile = "openapi.json";
+            var swagFile2 = "swag2.json";
+            _tempDir
+                .WithCSharpProject("testproj")
+                .WithTargetFrameworks("netcoreapp3.0")
+                .Dir()
+                .WithContentFile(nswagJsonFile)
+                .WithFile(swagFile2)
+                .WithContentFile("Startup.cs")
+                .Create();
+
+            var add = GetApplication();
+            var run = add.Execute(new[] { "add", "file", nswagJsonFile });
+
+            Assert.True(string.IsNullOrEmpty(_error.ToString()), $"Threw error: {_error.ToString()}");
+            Assert.Equal(0, run);
+
+            add = GetApplication();
+            run = add.Execute(new[] { "add", "file", swagFile2});
+
+            Assert.True(string.IsNullOrEmpty(_error.ToString()), $"Threw error: {_error.ToString()}");
+            Assert.Equal(0, run);
+
+            var remove = GetApplication();
+            var removeRun = remove.Execute(new[] { "remove", nswagJsonFile, swagFile2 });
+
+            Assert.True(string.IsNullOrEmpty(_error.ToString()), $"Threw error: {_error.ToString()}");
+            Assert.Equal(0, removeRun);
+
+            // csproj contents
+            var csproj = new FileInfo(Path.Join(_tempDir.Root, "testproj.csproj"));
+            using (var csprojStream = csproj.OpenRead())
+            using (var reader = new StreamReader(csprojStream))
+            {
+                var content = await reader.ReadToEndAsync();
+                // Don't remove the package reference, they might have taken other dependencies on it
+                Assert.Contains("<PackageReference Include=\"NSwag.ApiDescription.Client\" Version=\"", content);
+                Assert.DoesNotContain($"<OpenApiReference Include=\"{nswagJsonFile}\"", content);
+            }
+            Assert.False(File.Exists(Path.Combine(_tempDir.Root, nswagJsonFile)));
         }
     }
 }

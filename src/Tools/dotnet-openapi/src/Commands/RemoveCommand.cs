@@ -33,15 +33,18 @@ namespace Microsoft.DotNet.OpenApi.Commands
             }
             else
             {
-                RemoveServiceReference(OpenApiReference, projectFile, sourceFile);
+                var file = RemoveServiceReference(OpenApiReference, projectFile, sourceFile);
 
-                File.Delete(GetFullPath(sourceFile));
+                if(file != null)
+                {
+                    File.Delete(GetFullPath(file));
+                }
             }
 
             return Task.FromResult(0);
         }
 
-        private void RemoveServiceReference(string tagName, FileInfo projectFile, string sourceFile)
+        private string RemoveServiceReference(string tagName, FileInfo projectFile, string sourceFile)
         {
             var project = LoadProject(projectFile);
             var openApiReferenceItems = project.GetItems(tagName);
@@ -49,15 +52,18 @@ namespace Microsoft.DotNet.OpenApi.Commands
             foreach (ProjectItem item in openApiReferenceItems)
             {
                 var include = item.EvaluatedInclude;
-                if (string.Equals(include, sourceFile, StringComparison.Ordinal))
+                var sourceUrl = item.HasMetadata(SourceUrlAttrName) ? item.GetMetadataValue(SourceUrlAttrName) : null;
+                if (string.Equals(include, sourceFile, StringComparison.Ordinal)
+                    || string.Equals(sourceUrl, sourceFile))
                 {
                     project.RemoveItem(item);
                     project.Save();
-                    return;
+                    return include;
                 }
             }
 
-            Out.Write("No openapi reference was found with the given source file");
+            Warning.Write($"No openapi reference was found with the file '{sourceFile}'");
+            return null;
         }
 
         protected override bool ValidateArguments()
