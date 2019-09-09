@@ -4,7 +4,6 @@
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Server.IIS;
 using Microsoft.AspNetCore.Server.IIS.FunctionalTests.Utilities;
 using Microsoft.AspNetCore.Server.IntegrationTesting;
 using Microsoft.AspNetCore.Server.IntegrationTesting.IIS;
@@ -79,6 +78,10 @@ namespace Microsoft.AspNetCore.Server.IIS.FunctionalTests.InProcess
         public async Task SetIISLimitMaxRequestBodyLogsWarning()
         {
             var deploymentParameters = Fixture.GetBaseDeploymentParameters();
+
+            // Logs get tangled up due to ANCM debug logs and managed logs logging at the same time.
+            // Disable it for this test as we are trying to verify a log.
+            deploymentParameters.HandlerSettings["debugLevel"] = "";
             deploymentParameters.ServerConfigActionList.Add(
                 (config, _) => {
                     config
@@ -91,6 +94,9 @@ namespace Microsoft.AspNetCore.Server.IIS.FunctionalTests.InProcess
 
             var result = await deploymentResult.HttpClient.PostAsync("/DecreaseRequestLimit", new StringContent("1"));
             Assert.Equal(HttpStatusCode.OK, result.StatusCode);
+
+            StopServer();
+
             if (deploymentParameters.ServerType == ServerType.IISExpress)
             {
                 Assert.Single(TestSink.Writes, w => w.Message.Contains("Increasing the MaxRequestBodySize conflicts with the max value for IIS limit maxAllowedContentLength." +

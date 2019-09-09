@@ -27,6 +27,8 @@ namespace Microsoft.AspNetCore.Http.Connections
         private static JsonEncodedText TransferFormatsPropertyNameBytes = JsonEncodedText.Encode(TransferFormatsPropertyName);
         private const string ErrorPropertyName = "error";
         private static JsonEncodedText ErrorPropertyNameBytes = JsonEncodedText.Encode(ErrorPropertyName);
+        private const string NegotiateVersionPropertyName = "negotiateVersion";
+        private static JsonEncodedText NegotiateVersionPropertyNameBytes = JsonEncodedText.Encode(NegotiateVersionPropertyName);
 
         // Use C#7.3's ReadOnlySpan<byte> optimization for static data https://vcsjones.com/2019/02/01/csharp-readonly-span-bytes-static/
         // Used to detect ASP.NET SignalR Server connection attempt
@@ -40,6 +42,19 @@ namespace Microsoft.AspNetCore.Http.Connections
             {
                 var writer = reusableWriter.GetJsonWriter();
                 writer.WriteStartObject();
+
+                // If we already have an error its due to a protocol version incompatibility.
+                // We can just write the error and complete the JSON object and return.
+                if (!string.IsNullOrEmpty(response.Error))
+                {
+                    writer.WriteString(ErrorPropertyNameBytes, response.Error);
+                    writer.WriteEndObject();
+                    writer.Flush();
+                    Debug.Assert(writer.CurrentDepth == 0);
+                    return;
+                }
+
+                writer.WriteNumber(NegotiateVersionPropertyNameBytes, response.Version);
 
                 if (!string.IsNullOrEmpty(response.Url))
                 {
@@ -60,8 +75,10 @@ namespace Microsoft.AspNetCore.Http.Connections
 
                 if (response.AvailableTransports != null)
                 {
-                    foreach (var availableTransport in response.AvailableTransports)
+                    var transportCount = response.AvailableTransports.Count;
+                    for (var i = 0; i < transportCount; ++i)
                     {
+                        var availableTransport = response.AvailableTransports[i];
                         writer.WriteStartObject();
                         if (availableTransport.Transport != null)
                         {
@@ -76,9 +93,10 @@ namespace Microsoft.AspNetCore.Http.Connections
 
                         if (availableTransport.TransferFormats != null)
                         {
-                            foreach (var transferFormat in availableTransport.TransferFormats)
+                            var formatCount = availableTransport.TransferFormats.Count;
+                            for (var j = 0; j < formatCount; ++j)
                             {
-                                writer.WriteStringValue(transferFormat);
+                                writer.WriteStringValue(availableTransport.TransferFormats[j]);
                             }
                         }
 
@@ -113,6 +131,7 @@ namespace Microsoft.AspNetCore.Http.Connections
                 string accessToken = null;
                 List<AvailableTransport> availableTransports = null;
                 string error = null;
+                int version = 0;
 
                 var completed = false;
                 while (!completed && reader.CheckRead())
@@ -120,19 +139,23 @@ namespace Microsoft.AspNetCore.Http.Connections
                     switch (reader.TokenType)
                     {
                         case JsonTokenType.PropertyName:
-                            if (reader.TextEquals(UrlPropertyNameBytes.EncodedUtf8Bytes))
+                            if (reader.ValueTextEquals(UrlPropertyNameBytes.EncodedUtf8Bytes))
                             {
                                 url = reader.ReadAsString(UrlPropertyName);
                             }
-                            else if (reader.TextEquals(AccessTokenPropertyNameBytes.EncodedUtf8Bytes))
+                            else if (reader.ValueTextEquals(AccessTokenPropertyNameBytes.EncodedUtf8Bytes))
                             {
                                 accessToken = reader.ReadAsString(AccessTokenPropertyName);
                             }
-                            else if (reader.TextEquals(ConnectionIdPropertyNameBytes.EncodedUtf8Bytes))
+                            else if (reader.ValueTextEquals(ConnectionIdPropertyNameBytes.EncodedUtf8Bytes))
                             {
                                 connectionId = reader.ReadAsString(ConnectionIdPropertyName);
                             }
-                            else if (reader.TextEquals(AvailableTransportsPropertyNameBytes.EncodedUtf8Bytes))
+                            else if (reader.ValueTextEquals(NegotiateVersionPropertyNameBytes.EncodedUtf8Bytes))
+                            {
+                                version = reader.ReadAsInt32(NegotiateVersionPropertyName).GetValueOrDefault();
+                            }
+                            else if (reader.ValueTextEquals(AvailableTransportsPropertyNameBytes.EncodedUtf8Bytes))
                             {
                                 reader.CheckRead();
                                 reader.EnsureArrayStart();
@@ -150,11 +173,11 @@ namespace Microsoft.AspNetCore.Http.Connections
                                     }
                                 }
                             }
-                            else if (reader.TextEquals(ErrorPropertyNameBytes.EncodedUtf8Bytes))
+                            else if (reader.ValueTextEquals(ErrorPropertyNameBytes.EncodedUtf8Bytes))
                             {
                                 error = reader.ReadAsString(ErrorPropertyName);
                             }
-                            else if (reader.TextEquals(ProtocolVersionPropertyNameBytes))
+                            else if (reader.ValueTextEquals(ProtocolVersionPropertyNameBytes))
                             {
                                 throw new InvalidOperationException("Detected a connection attempt to an ASP.NET SignalR Server. This client only supports connecting to an ASP.NET Core SignalR Server. See https://aka.ms/signalr-core-differences for details.");
                             }
@@ -192,6 +215,7 @@ namespace Microsoft.AspNetCore.Http.Connections
                     AccessToken = accessToken,
                     AvailableTransports = availableTransports,
                     Error = error,
+                    Version = version
                 };
             }
             catch (Exception ex)
@@ -219,13 +243,11 @@ namespace Microsoft.AspNetCore.Http.Connections
                 switch (reader.TokenType)
                 {
                     case JsonTokenType.PropertyName:
-                        var memberName = reader.ValueSpan;
-
-                        if (memberName.SequenceEqual(TransportPropertyNameBytes.EncodedUtf8Bytes))
+                        if (reader.ValueTextEquals(TransportPropertyNameBytes.EncodedUtf8Bytes))
                         {
                             availableTransport.Transport = reader.ReadAsString(TransportPropertyName);
                         }
-                        else if (memberName.SequenceEqual(TransferFormatsPropertyNameBytes.EncodedUtf8Bytes))
+                        else if (reader.ValueTextEquals(TransferFormatsPropertyNameBytes.EncodedUtf8Bytes))
                         {
                             reader.CheckRead();
                             reader.EnsureArrayStart();

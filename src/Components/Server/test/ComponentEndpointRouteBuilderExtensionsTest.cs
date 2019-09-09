@@ -1,9 +1,10 @@
 // Copyright (c) .NET Foundation. All rights reserved.
 // Licensed under the Apache License, Version 2.0. See License.txt in the project root for license information.
 
+using System.Diagnostics;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Builder.Internal;
-using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Moq;
@@ -17,12 +18,7 @@ namespace Microsoft.AspNetCore.Components.Server.Tests
         public void MapBlazorHub_WiresUp_UnderlyingHub()
         {
             // Arrange
-            var applicationBuilder = new ApplicationBuilder(
-                new ServiceCollection()
-                .AddLogging()
-                .AddSingleton(Mock.Of<IHostApplicationLifetime>())
-                .AddSignalR().Services
-                .AddServerSideBlazor().Services.BuildServiceProvider());
+            var applicationBuilder = CreateAppBuilder();
             var called = false;
 
             // Act
@@ -30,7 +26,7 @@ namespace Microsoft.AspNetCore.Components.Server.Tests
                 .UseRouting()
                 .UseEndpoints(endpoints =>
             {
-                endpoints.MapBlazorHub(dispatchOptions => called = true);
+                endpoints.MapBlazorHub<MyComponent>("app", dispatchOptions => called = true);
             }).Build();
 
             // Assert
@@ -41,12 +37,7 @@ namespace Microsoft.AspNetCore.Components.Server.Tests
         public void MapBlazorHub_MostGeneralOverload_MapsUnderlyingHub()
         {
             // Arrange
-            var applicationBuilder = new ApplicationBuilder(
-                new ServiceCollection()
-                .AddLogging()
-                .AddSingleton(Mock.Of<IHostApplicationLifetime>())
-                .AddSignalR().Services
-                .AddServerSideBlazor().Services.BuildServiceProvider());
+            var applicationBuilder = CreateAppBuilder();
             var called = false;
 
             // Act
@@ -59,6 +50,38 @@ namespace Microsoft.AspNetCore.Components.Server.Tests
 
             // Assert
             Assert.True(called);
+        }
+        
+        private IApplicationBuilder CreateAppBuilder()
+        {
+            var services = new ServiceCollection();
+            services.AddSingleton(Mock.Of<IHostApplicationLifetime>());
+            services.AddLogging();
+            services.AddOptions();
+            var listener = new DiagnosticListener("Microsoft.AspNetCore");
+            services.AddSingleton(listener);
+            services.AddSingleton<DiagnosticSource>(listener);
+            services.AddRouting();
+            services.AddSignalR();
+            services.AddServerSideBlazor();
+            services.AddSingleton<IConfiguration>(new ConfigurationBuilder().Build());
+
+            var serviceProvder = services.BuildServiceProvider();
+
+            return new ApplicationBuilder(serviceProvder);
+        }
+
+        private class MyComponent : IComponent
+        {
+            public void Attach(RenderHandle renderHandle)
+            {
+                throw new System.NotImplementedException();
+            }
+
+            public Task SetParametersAsync(ParameterView parameters)
+            {
+                throw new System.NotImplementedException();
+            }
         }
     }
 }

@@ -62,10 +62,10 @@ namespace Test
 
     public class MyComponent : ComponentBase
     {
-        [Parameter] int IntProperty { get; set; }
-        [Parameter] bool BoolProperty { get; set; }
-        [Parameter] string StringProperty { get; set; }
-        [Parameter] SomeType ObjectProperty { get; set; }
+        [Parameter] public int IntProperty { get; set; }
+        [Parameter] public bool BoolProperty { get; set; }
+        [Parameter] public string StringProperty { get; set; }
+        [Parameter] public SomeType ObjectProperty { get; set; }
     }
 }
 "));
@@ -135,7 +135,7 @@ namespace Test
     public class MyComponent : ComponentBase
     {
         [Parameter]
-        string StringProperty { get; set; }
+        public string StringProperty { get; set; }
     }
 }
 "));
@@ -165,7 +165,7 @@ namespace Test
 {
     public class MyComponent : ComponentBase, IComponent
     {
-        Task IComponent.SetParametersAsync(ParameterCollection parameters)
+        Task IComponent.SetParametersAsync(ParameterView parameters)
         {
             return Task.CompletedTask;
         }
@@ -208,7 +208,7 @@ namespace Test
     public class MyComponent : ComponentBase
     {
         [Parameter]
-        Action<UIMouseEventArgs> OnClick { get; set; }
+        public Action<UIMouseEventArgs> OnClick { get; set; }
     }
 }
 "));
@@ -253,7 +253,7 @@ namespace Test
     public class MyComponent : ComponentBase
     {
         [Parameter]
-        Action<UIEventArgs> OnClick { get; set; }
+        public Action<EventArgs> OnClick { get; set; }
     }
 }
 "));
@@ -263,7 +263,7 @@ namespace Test
 
 @code {
     private int counter;
-    private void Increment(UIEventArgs e) {
+    private void Increment(EventArgs e) {
         counter++;
     }
 }");
@@ -280,7 +280,7 @@ namespace Test
                     AssertFrame.Attribute(frame, "OnClick", 1);
 
                     // The handler will have been assigned to a lambda
-                    var handler = Assert.IsType<Action<UIEventArgs>>(frame.AttributeValue);
+                    var handler = Assert.IsType<Action<EventArgs>>(frame.AttributeValue);
                     Assert.Equal("Test.TestComponent", handler.Target.GetType().FullName);
                     Assert.Equal("Increment", handler.Method.Name);
                 });
@@ -298,7 +298,7 @@ namespace Test
     public class MyComponent : ComponentBase
     {
         [Parameter]
-        bool BoolProperty { get; set; }
+        public bool BoolProperty { get; set; }
     }
 }"));
 
@@ -326,10 +326,10 @@ namespace Test
     public class MyComponent : ComponentBase
     {
         [Parameter]
-        string MyAttr { get; set; }
+        public string MyAttr { get; set; }
 
         [Parameter]
-        RenderFragment ChildContent { get; set; }
+        public RenderFragment ChildContent { get; set; }
     }
 }
 "));
@@ -345,7 +345,7 @@ namespace Test
                 frames,
                 frame => AssertFrame.Component(frame, "Test.MyComponent", 3, 0),
                 frame => AssertFrame.Attribute(frame, "MyAttr", "abc", 1),
-                frame => AssertFrame.Attribute(frame, RenderTreeBuilder.ChildContent, 2));
+                frame => AssertFrame.Attribute(frame, "ChildContent", 2));
 
             // Assert: Captured ChildContent frames are correct
             var childFrames = GetFrames((RenderFragment)frames[2].AttributeValue);
@@ -370,7 +370,7 @@ namespace Test
     public class MyComponent : ComponentBase
     {
         [Parameter]
-        RenderFragment ChildContent { get; set; }
+        public RenderFragment ChildContent { get; set; }
     }
 }
 "));
@@ -385,7 +385,7 @@ namespace Test
             Assert.Collection(
                 frames,
                 frame => AssertFrame.Component(frame, "Test.MyComponent", 2, 0),
-                frame => AssertFrame.Attribute(frame, RenderTreeBuilder.ChildContent, 1));
+                frame => AssertFrame.Attribute(frame, "ChildContent", 1));
 
             // Assert: first level of ChildContent is correct
             // Note that we don't really need the sequence numbers to continue on from the
@@ -397,7 +397,7 @@ namespace Test
             Assert.Collection(
                 innerFrames,
                 frame => AssertFrame.Component(frame, "Test.MyComponent", 2, 2),
-                frame => AssertFrame.Attribute(frame, RenderTreeBuilder.ChildContent, 3));
+                frame => AssertFrame.Attribute(frame, "ChildContent", 3));
 
             // Assert: second level of ChildContent is correct
             Assert.Collection(
@@ -416,7 +416,7 @@ namespace Test
 {
     public class SurveyPrompt : ComponentBase
     {
-        [Parameter] private string Title { get; set; }
+        [Parameter] public string Title { get; set; }
     }
 }
 "));
@@ -445,7 +445,7 @@ namespace Test
 
             // Act
             var component = CompileToComponent(@"
-<p @onmouseover=""@OnComponentHover"" style=""background: @ParentBgColor;"" />
+<p @onmouseover=""OnComponentHover"" style=""background: @ParentBgColor;"" />
 @code {
     public string ParentBgColor { get; set; } = ""#FFFFFF"";
 
@@ -508,7 +508,7 @@ namespace Test
     public class MyComponent : ComponentBase
     {
         [Parameter]
-        RenderFragment ChildContent { get; set; }
+        public RenderFragment ChildContent { get; set; }
     }
 }
 "));
@@ -540,7 +540,7 @@ namespace Test
                 frame => AssertFrame.Element(frame, "body", 5, 3),
                 frame => AssertFrame.MarkupWhitespace(frame, 4),
                 frame => AssertFrame.Component(frame, "Test.MyComponent", 2, 5),
-                frame => AssertFrame.Attribute(frame, RenderTreeBuilder.ChildContent, 6),
+                frame => AssertFrame.Attribute(frame, "ChildContent", 6),
                 frame => AssertFrame.MarkupWhitespace(frame, 16),
                 frame => AssertFrame.MarkupWhitespace(frame, 17));
 
@@ -565,15 +565,15 @@ namespace Test
             // Arrange
             AdditionalSyntaxTrees.Add(Parse(@"
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.RenderTree;
+using Microsoft.AspNetCore.Components.Rendering;
 
 namespace Test
 {
     public class Repeater : ComponentBase
     {
-        [Parameter] int Count { get; set; }
-        [Parameter] RenderFragment<string> Template { get; set; }
-        [Parameter] string Value { get; set; }
+        [Parameter] public int Count { get; set; }
+        [Parameter] public RenderFragment<string> Template { get; set; }
+        [Parameter] public string Value { get; set; }
 
         protected override void BuildRenderTree(RenderTreeBuilder builder)
         {

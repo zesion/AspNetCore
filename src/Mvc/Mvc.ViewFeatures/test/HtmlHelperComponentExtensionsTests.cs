@@ -6,13 +6,14 @@ using System.IO;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.RenderTree;
-using Microsoft.AspNetCore.Components.Server;
+using Microsoft.AspNetCore.Components.Rendering;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.ViewFeatures.RazorComponents;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.JSInterop;
 using Microsoft.Net.Http.Headers;
 using Moq;
@@ -30,7 +31,7 @@ namespace Microsoft.AspNetCore.Mvc.ViewFeatures.Test
             var writer = new StringWriter();
 
             // Act
-            var result = await helper.RenderStaticComponentAsync<TestComponent>();
+            var result = await helper.RenderComponentAsync<TestComponent>();
             result.WriteTo(writer, HtmlEncoder.Default);
             var content = writer.ToString();
 
@@ -46,7 +47,7 @@ namespace Microsoft.AspNetCore.Mvc.ViewFeatures.Test
             var writer = new StringWriter();
 
             // Act
-            var result = await helper.RenderStaticComponentAsync<GreetingComponent>(new
+            var result = await helper.RenderComponentAsync<GreetingComponent>(new
             {
                 Name = "Steve"
             });
@@ -58,13 +59,33 @@ namespace Microsoft.AspNetCore.Mvc.ViewFeatures.Test
         }
 
         [Fact]
+        public async Task RenderComponent_DoesNotInvokeOnAfterRenderInComponent()
+        {
+            // Arrange
+            var helper = CreateHelper();
+            var writer = new StringWriter();
+
+            // Act
+            var state = new OnAfterRenderState();
+            var result = await helper.RenderComponentAsync<OnAfterRenderComponent>(new
+            {
+                State = state
+            });
+            result.WriteTo(writer, HtmlEncoder.Default);
+
+            // Assert
+            Assert.Equal("<p>Hello</p>", writer.ToString());
+            Assert.False(state.OnAfterRenderRan);
+        }
+
+        [Fact]
         public async Task CanCatch_ComponentWithSynchronousException()
         {
             // Arrange
             var helper = CreateHelper();
 
             // Act & Assert
-            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => helper.RenderStaticComponentAsync<ExceptionComponent>(new
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => helper.RenderComponentAsync<ExceptionComponent>(new
             {
                 IsAsync = false
             }));
@@ -80,7 +101,7 @@ namespace Microsoft.AspNetCore.Mvc.ViewFeatures.Test
             var helper = CreateHelper();
 
             // Act & Assert
-            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => helper.RenderStaticComponentAsync<ExceptionComponent>(new
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => helper.RenderComponentAsync<ExceptionComponent>(new
             {
                 IsAsync = true
             }));
@@ -96,7 +117,7 @@ namespace Microsoft.AspNetCore.Mvc.ViewFeatures.Test
             var helper = CreateHelper();
 
             // Act & Assert
-            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => helper.RenderStaticComponentAsync<ExceptionComponent>(new
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => helper.RenderComponentAsync<ExceptionComponent>(new
             {
                 JsInterop = true
             }));
@@ -125,11 +146,11 @@ namespace Microsoft.AspNetCore.Mvc.ViewFeatures.Test
             var writer = new StringWriter();
 
             // Act
-            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => helper.RenderStaticComponentAsync<RedirectComponent>(new
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => helper.RenderComponentAsync<RedirectComponent>(new
             {
                 RedirectUri = "http://localhost/redirect"
             }));
-            
+
             Assert.Equal("A navigation command was attempted during prerendering after the server already started sending the response. " +
                             "Navigation commands can not be issued during server-side prerendering after the response from the server has started. Applications must buffer the" +
                             "reponse and avoid using features like FlushAsync() before all components on the page have been rendered to prevent failed navigation commands.",
@@ -149,7 +170,7 @@ namespace Microsoft.AspNetCore.Mvc.ViewFeatures.Test
             var helper = CreateHelper(ctx);
 
             // Act
-            await helper.RenderStaticComponentAsync<RedirectComponent>(new
+            await helper.RenderComponentAsync<RedirectComponent>(new
             {
                 RedirectUri = "http://localhost/redirect"
             });
@@ -209,7 +230,7 @@ namespace Microsoft.AspNetCore.Mvc.ViewFeatures.Test
 </table>";
 
             // Act
-            var result = await helper.RenderStaticComponentAsync<AsyncComponent>();
+            var result = await helper.RenderComponentAsync<AsyncComponent>();
             result.WriteTo(writer, HtmlEncoder.Default);
             var content = writer.ToString();
 
@@ -221,9 +242,10 @@ namespace Microsoft.AspNetCore.Mvc.ViewFeatures.Test
         {
             var services = new ServiceCollection();
             services.AddSingleton(HtmlEncoder.Default);
-            services.AddSingleton<IJSRuntime,UnsupportedJavaScriptRuntime>();
-            services.AddSingleton<IUriHelper,HttpUriHelper>();
+            services.AddSingleton<IJSRuntime, UnsupportedJavaScriptRuntime>();
+            services.AddSingleton<NavigationManager, HttpNavigationManager>();
             services.AddSingleton<StaticComponentRenderer>();
+            services.AddSingleton<ILoggerFactory, NullLoggerFactory>();
 
             configureServices?.Invoke(services);
 
@@ -248,12 +270,12 @@ namespace Microsoft.AspNetCore.Mvc.ViewFeatures.Test
         {
             private RenderHandle _renderHandle;
 
-            public void Configure(RenderHandle renderHandle)
+            public void Attach(RenderHandle renderHandle)
             {
                 _renderHandle = renderHandle;
             }
 
-            public Task SetParametersAsync(ParameterCollection parameters)
+            public Task SetParametersAsync(ParameterView parameters)
             {
                 _renderHandle.Render(builder =>
                 {
@@ -268,23 +290,23 @@ namespace Microsoft.AspNetCore.Mvc.ViewFeatures.Test
 
         private class RedirectComponent : ComponentBase
         {
-            [Inject] IUriHelper UriHelper { get; set; }
+            [Inject] NavigationManager NavigationManager { get; set; }
 
             [Parameter] public string RedirectUri { get; set; }
 
             [Parameter] public bool Force { get; set; }
 
-            protected override void OnInit()
+            protected override void OnInitialized()
             {
-                UriHelper.NavigateTo(RedirectUri, Force);
+                NavigationManager.NavigateTo(RedirectUri, Force);
             }
         }
 
         private class ExceptionComponent : ComponentBase
         {
-            [Parameter] bool IsAsync { get; set; }
+            [Parameter] public bool IsAsync { get; set; }
 
-            [Parameter] bool JsInterop { get; set; }
+            [Parameter] public bool JsInterop { get; set; }
 
             [Inject] IJSRuntime JsRuntime { get; set; }
 
@@ -305,6 +327,26 @@ namespace Microsoft.AspNetCore.Mvc.ViewFeatures.Test
                     throw new InvalidOperationException("Threw an exception asynchronously");
                 }
             }
+        }
+
+        private class OnAfterRenderComponent : ComponentBase
+        {
+            [Parameter] public OnAfterRenderState State { get; set; }
+
+            protected override void OnAfterRender(bool firstRender)
+            {
+                State.OnAfterRenderRan = true;
+            }
+
+            protected override void BuildRenderTree(RenderTreeBuilder builder)
+            {
+                builder.AddMarkupContent(0, "<p>Hello</p>");
+            }
+        }
+
+        private class OnAfterRenderState
+        {
+            public bool OnAfterRenderRan { get; set; }
         }
 
         private class GreetingComponent : ComponentBase

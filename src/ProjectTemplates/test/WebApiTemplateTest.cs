@@ -36,7 +36,7 @@ namespace Templates.Test
             Assert.True(0 == publishResult.ExitCode, ErrorMessages.GetFailedProcessMessage("publish", Project, publishResult));
 
             // Run dotnet build after publish. The reason is that one uses Config = Debug and the other uses Config = Release
-            // The output from publish will go into bin/Release/netcoreapp3.0/publish and won't be affected by calling build
+            // The output from publish will go into bin/Release/netcoreapp5.0/publish and won't be affected by calling build
             // later, while the opposite is not true.
 
             var buildResult = await Project.RunDotNetBuildAsync();
@@ -48,7 +48,7 @@ namespace Templates.Test
                     aspNetProcess.Process.HasExited,
                     ErrorMessages.GetFailedProcessMessageOrEmpty("Run built project", Project, aspNetProcess.Process));
 
-                await aspNetProcess.AssertOk("/api/values");
+                await aspNetProcess.AssertOk("weatherforecast");
                 await aspNetProcess.AssertNotFound("/");
             }
 
@@ -59,7 +59,7 @@ namespace Templates.Test
                     ErrorMessages.GetFailedProcessMessageOrEmpty("Run published project", Project, aspNetProcess.Process));
 
 
-                await aspNetProcess.AssertOk("/api/values");
+                await aspNetProcess.AssertOk("weatherforecast");
                 await aspNetProcess.AssertNotFound("/");
             }
         }

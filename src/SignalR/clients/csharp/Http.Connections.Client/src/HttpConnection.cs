@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.IO.Pipelines;
 using System.Linq;
 using System.Net.Http;
-using System.Runtime.InteropServices;
+using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Connections;
@@ -26,12 +26,10 @@ namespace Microsoft.AspNetCore.Http.Connections.Client
         // Not configurable on purpose, high enough that if we reach here, it's likely
         // a buggy server
         private static readonly int _maxRedirects = 100;
+        private static readonly int _protocolVersionNumber = 1;
         private static readonly Task<string> _noAccessToken = Task.FromResult<string>(null);
 
         private static readonly TimeSpan HttpClientTimeout = TimeSpan.FromSeconds(120);
-#if !NETCOREAPP3_0
-        private static readonly Version Windows8Version = new Version(6, 2);
-#endif
 
         private readonly ILogger _logger;
 
@@ -132,6 +130,11 @@ namespace Microsoft.AspNetCore.Http.Connections.Client
         /// <param name="loggerFactory">The logger factory.</param>
         public HttpConnection(HttpConnectionOptions httpConnectionOptions, ILoggerFactory loggerFactory)
         {
+            if (httpConnectionOptions == null)
+            {
+                throw new ArgumentNullException(nameof(httpConnectionOptions));
+            }
+
             if (httpConnectionOptions.Url == null)
             {
                 throw new ArgumentException("Options does not have a URL specified.", nameof(httpConnectionOptions));
@@ -171,7 +174,7 @@ namespace Microsoft.AspNetCore.Http.Connections.Client
         /// </remarks>
         public Task StartAsync(CancellationToken cancellationToken = default)
         {
-            return StartAsync(TransferFormat.Binary, cancellationToken);
+            return StartAsync(_httpConnectionOptions.DefaultTransferFormat, cancellationToken);
         }
 
         /// <summary>
@@ -426,8 +429,9 @@ namespace Microsoft.AspNetCore.Http.Connections.Client
                     urlBuilder.Path += "/";
                 }
                 urlBuilder.Path += "negotiate";
+                var uri = Utils.AppendQueryString(urlBuilder.Uri, $"negotiateVersion={_protocolVersionNumber}");
 
-                using (var request = new HttpRequestMessage(HttpMethod.Post, urlBuilder.Uri))
+                using (var request = new HttpRequestMessage(HttpMethod.Post, uri))
                 {
                     // Corefx changed the default version and High Sierra curlhandler tries to upgrade request
                     request.Version = new Version(1, 1);
@@ -464,7 +468,7 @@ namespace Microsoft.AspNetCore.Http.Connections.Client
                 throw new FormatException("Invalid connection id.");
             }
 
-            return Utils.AppendQueryString(url, "id=" + connectionId);
+            return Utils.AppendQueryString(url, $"negotiateVersion={_protocolVersionNumber}&id=" + connectionId);
         }
 
         private async Task StartTransport(Uri connectUrl, HttpTransportType transportType, TransferFormat transferFormat, CancellationToken cancellationToken)
@@ -549,14 +553,34 @@ namespace Microsoft.AspNetCore.Http.Connections.Client
             httpClient.Timeout = HttpClientTimeout;
 
             // Start with the user agent header
-            httpClient.DefaultRequestHeaders.UserAgent.Add(Constants.UserAgentHeader);
+            httpClient.DefaultRequestHeaders.Add(Constants.UserAgent, Constants.UserAgentHeader);
 
             // Apply any headers configured on the HttpConnectionOptions
             if (_httpConnectionOptions?.Headers != null)
             {
                 foreach (var header in _httpConnectionOptions.Headers)
                 {
-                    httpClient.DefaultRequestHeaders.Add(header.Key, header.Value);
+                    // Check if the key is User-Agent and remove if empty string then replace if it exists.
+                    if (string.Equals(header.Key, Constants.UserAgent, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (string.IsNullOrEmpty(header.Value))
+                        {
+                            httpClient.DefaultRequestHeaders.Remove(header.Key);
+                        }
+                        else if (httpClient.DefaultRequestHeaders.Contains(header.Key))
+                        {
+                            httpClient.DefaultRequestHeaders.Remove(header.Key);
+                            httpClient.DefaultRequestHeaders.Add(header.Key, header.Value);
+                        }
+                        else
+                        {
+                            httpClient.DefaultRequestHeaders.Add(header.Key, header.Value);
+                        }
+                    }
+                    else
+                    {
+                        httpClient.DefaultRequestHeaders.Add(header.Key, header.Value);
+                    }
                 }
             }
 
@@ -586,20 +610,18 @@ namespace Microsoft.AspNetCore.Http.Connections.Client
 
         private static bool IsWebSocketsSupported()
         {
-#if NETCOREAPP3_0
+#if NETSTANDARD2_1
             // .NET Core 2.1 and above has a managed implementation
             return true;
 #else
-            var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-            if (!isWindows)
+            try
             {
-                // Assume other OSes have websockets
+                new ClientWebSocket().Dispose();
                 return true;
             }
-            else
+            catch
             {
-                // Windows 8 and above has websockets
-                return Environment.OSVersion.Version >= Windows8Version;
+                return false;
             }
 #endif
         }

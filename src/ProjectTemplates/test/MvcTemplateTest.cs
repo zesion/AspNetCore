@@ -49,7 +49,7 @@ namespace Templates.Test
             Assert.True(0 == publishResult.ExitCode, ErrorMessages.GetFailedProcessMessage("publish", Project, publishResult));
 
             // Run dotnet build after publish. The reason is that one uses Config = Debug and the other uses Config = Release
-            // The output from publish will go into bin/Release/netcoreapp3.0/publish and won't be affected by calling build
+            // The output from publish will go into bin/Release/netcoreapp5.0/publish and won't be affected by calling build
             // later, while the opposite is not true.
 
             var buildResult = await Project.RunDotNetBuildAsync();
@@ -61,10 +61,6 @@ namespace Templates.Test
                 PageUrls.PrivacyFullUrl
             };
 
-            if (languageOverride == null)
-            {
-                menuLinks = menuLinks.Append(PageUrls.PrivacyFullUrl);
-            }
             var footerLinks = new string[] { PageUrls.PrivacyFullUrl };
 
             var pages = new List<Page>
@@ -121,7 +117,7 @@ namespace Templates.Test
             Assert.True(0 == publishResult.ExitCode, ErrorMessages.GetFailedProcessMessage("publish", Project, publishResult));
 
             // Run dotnet build after publish. The reason is that one uses Config = Debug and the other uses Config = Release
-            // The output from publish will go into bin/Release/netcoreapp3.0/publish and won't be affected by calling build
+            // The output from publish will go into bin/Release/netcoreapp5.0/publish and won't be affected by calling build
             // later, while the opposite is not true.
 
             var buildResult = await Project.RunDotNetBuildAsync();
@@ -141,7 +137,6 @@ namespace Templates.Test
                         PageUrls.LoginUrl,
                         PageUrls.HomeUrl,
                         PageUrls.PrivacyUrl,
-                        PageUrls.PrivacyUrl,
                         PageUrls.PrivacyUrl
                     }
                 },
@@ -153,7 +148,6 @@ namespace Templates.Test
                         PageUrls.RegisterUrl,
                         PageUrls.LoginUrl,
                         PageUrls.HomeUrl,
-                        PageUrls.PrivacyUrl,
                         PageUrls.PrivacyUrl,
                         PageUrls.DocsUrl,
                         PageUrls.PrivacyUrl
@@ -168,7 +162,6 @@ namespace Templates.Test
                         PageUrls.LoginUrl,
                         PageUrls.HomeUrl,
                         PageUrls.PrivacyUrl,
-                        PageUrls.PrivacyUrl,
                         PageUrls.PrivacyUrl
                     }
                 },
@@ -180,7 +173,6 @@ namespace Templates.Test
                         PageUrls.RegisterUrl,
                         PageUrls.LoginUrl,
                         PageUrls.HomeUrl,
-                        PageUrls.PrivacyUrl,
                         PageUrls.PrivacyUrl,
                         PageUrls.ForgotPassword,
                         PageUrls.RegisterUrl,
@@ -195,7 +187,6 @@ namespace Templates.Test
                         PageUrls.RegisterUrl,
                         PageUrls.LoginUrl,
                         PageUrls.HomeUrl,
-                        PageUrls.PrivacyUrl,
                         PageUrls.PrivacyUrl,
                         PageUrls.ExternalArticle,
                         PageUrls.PrivacyUrl

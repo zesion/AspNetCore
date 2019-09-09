@@ -173,7 +173,7 @@ namespace Microsoft.AspNetCore.Server.IIS.FunctionalTests.InProcess
 
         public static TestMatrix TestVariants
             => TestMatrix.ForServers(DeployerSelector.ServerType)
-                .WithTfms(Tfm.NetCoreApp30)
+                .WithTfms(Tfm.NetCoreApp50)
                 .WithAllApplicationTypes()
                 .WithAncmV2InProcess();
 
@@ -363,6 +363,24 @@ namespace Microsoft.AspNetCore.Server.IIS.FunctionalTests.InProcess
             }
 
             EventLogHelpers.VerifyEventLogEvent(deploymentResult, EventLogHelpers.InProcessFailedToFindNativeDependencies(deploymentResult), Logger);
+        }
+
+        [ConditionalFact]
+        public async Task SingleExecutable_FailedToFindNativeDependencies()
+        {
+            var deploymentParameters = Fixture.GetBaseDeploymentParameters(Fixture.InProcessTestSite);
+            deploymentParameters.ApplicationType = ApplicationType.Standalone;
+            var deploymentResult = await DeployAsync(deploymentParameters);
+
+            File.Delete(Path.Combine(deploymentResult.ContentRoot, "InProcessWebSite.dll"));
+            if (DeployerSelector.HasNewShim)
+            {
+                await AssertSiteFailsToStartWithInProcessStaticContent(deploymentResult, "HTTP Error 500.38 - ANCM Application DLL Not Found");
+            }
+            else
+            {
+                await AssertSiteFailsToStartWithInProcessStaticContent(deploymentResult);
+            }
         }
 
         [ConditionalFact]

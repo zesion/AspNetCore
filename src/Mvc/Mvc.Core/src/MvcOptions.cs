@@ -5,8 +5,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc.ApplicationModels;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
@@ -105,18 +103,18 @@ namespace Microsoft.AspNetCore.Mvc
 
         /// <summary>
         /// Gets or sets a value that detemines if the inference of <see cref="RequiredAttribute"/> for
-        /// for properties and parameters of non-nullable reference types is suppressed. If <c>false</c> 
-        /// (the default), then all non-nullable reference types will behave as-if <c>[Required]</c> has 
-        /// been applied. If <c>true</c>, this behavior will be suppressed; nullable reference types and 
+        /// for properties and parameters of non-nullable reference types is suppressed. If <c>false</c>
+        /// (the default), then all non-nullable reference types will behave as-if <c>[Required]</c> has
+        /// been applied. If <c>true</c>, this behavior will be suppressed; nullable reference types and
         /// non-nullable reference types will behave the same for the purposes of validation.
         /// </summary>
         /// <remarks>
         /// <para>
-        /// This option controls whether MVC model binding and validation treats nullable and non-nullable 
-        /// reference types differently. 
+        /// This option controls whether MVC model binding and validation treats nullable and non-nullable
+        /// reference types differently.
         /// </para>
         /// <para>
-        /// By default, MVC will treat a non-nullable reference type parameters and properties as-if 
+        /// By default, MVC will treat a non-nullable reference type parameters and properties as-if
         /// <c>[Required]</c> has been applied, resulting in validation errors when no value was bound.
         /// </para>
         /// <para>
@@ -362,19 +360,17 @@ namespace Microsoft.AspNetCore.Mvc
         }
 
         /// <summary>
-        /// Gets the <see cref="JsonSerializerOptions"/> used by <see cref="SystemTextJsonInputFormatter"/> and
-        /// <see cref="SystemTextJsonOutputFormatter"/>.
+        /// Gets or sets the most number of entries of an <see cref="IAsyncEnumerable{T}"/> that
+        /// that <see cref="ObjectResultExecutor"/> will buffer.
+        /// <para>
+        /// When <see cref="ObjectResult.Value" /> is an instance of <see cref="IAsyncEnumerable{T}"/>,
+        /// <see cref="ObjectResultExecutor"/> will eagerly read the enumeration and add to a synchronous collection
+        /// prior to invoking the selected formatter.
+        /// This property determines the most number of entries that the executor is allowed to buffer.
+        /// </para>
         /// </summary>
-        public JsonSerializerOptions SerializerOptions { get; } = new JsonSerializerOptions
-        {
-            // Limit the object graph we'll consume to a fixed depth. This prevents stackoverflow exceptions
-            // from deserialization errors that might occur from deeply nested objects.
-            // This value is the same for model binding and Json.Net's serialization.
-            MaxDepth = DefaultMaxModelBindingRecursionDepth,
-
-            // Use camel casing for properties
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        };
+        /// <value>Defaults to <c>8192</c>.</value>
+        public int MaxIAsyncEnumerableBufferLimit { get; set; } = 8192;
 
         IEnumerator<ICompatibilitySwitch> IEnumerable<ICompatibilitySwitch>.GetEnumerator() => _switches.GetEnumerator();
 
